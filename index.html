@@ -369,12 +369,40 @@ select{
 <script>
 // ─── DATA ──────────────────────────────────────────────────────────────────
 const CAT_ICONS={
-  "Commander":"♛","Criaturas Avatar":"◈","Hechizos Avatar":"✦","Tierras Avatar":"◆",
-  "Artefactos de Maná":"◇","Criaturas Soporte":"◉","Hechizos":"⚡","Tierras":"▲",
-  "Tierras Básicas":"▽","Criaturas":"☽","Encantamientos":"❋","Instantáneos":"◆",
-  "Sorcerías":"◇","Sin categoría":"○"
+  "Commander":"♛",
+  "Criaturas":"☽","Criaturas Avatar":"◈","Criaturas Soporte":"◉",
+  "Instantáneos":"⚡","Sorcerías":"◇","Encantamientos":"❋",
+  "Artefactos":"◆","Artefactos de Maná":"◇",
+  "Hechizos Avatar":"✦","Hechizos":"⚡",
+  "Tierras":"▲","Tierras Avatar":"◆","Tierras Básicas":"▽",
+  "Sin categoría":"○"
 };
-const ALL_CATS=Object.keys(CAT_ICONS);
+
+// Ordered display: Commander always first, lands always last
+const CAT_ORDER=[
+  "Commander",
+  "Criaturas","Criaturas Avatar","Criaturas Soporte",
+  "Instantáneos","Sorcerías","Encantamientos",
+  "Artefactos","Artefactos de Maná",
+  "Hechizos Avatar","Hechizos",
+  "Tierras Avatar","Tierras","Tierras Básicas",
+  "Sin categoría"
+];
+const ALL_CATS=CAT_ORDER;
+
+// Smart auto-detect category from Scryfall type line
+function autoDetectCat(typeLine=""){
+  const t=typeLine.toLowerCase();
+  if(t.includes("land")) return "Tierras";
+  if(t.includes("basic land")) return "Tierras Básicas";
+  if(t.includes("artifact")) return "Artefactos";
+  if(t.includes("enchantment")) return "Encantamientos";
+  if(t.includes("instant")) return "Instantáneos";
+  if(t.includes("sorcery")) return "Sorcerías";
+  if(t.includes("creature")) return "Criaturas";
+  if(t.includes("planeswalker")) return "Criaturas";
+  return "Sin categoría";
+}
 
 const AZULA_CARDS=[
   {id:"cmd-azula",name:"Fire Lord Azula",set:"tla",cn:"220",cat:"Commander",status:"need",qty:1,avatar:true},
@@ -822,7 +850,12 @@ function renderDeck(){
     return true;
   });
 
-  const visCats=[...new Set(visible.map(c=>c.cat))];
+  // Sort categories: Commander first, then by CAT_ORDER, lands last
+  const visCatsRaw=[...new Set(visible.map(c=>c.cat))];
+  const visCats=visCatsRaw.sort((a,b)=>{
+    const ai=CAT_ORDER.indexOf(a); const bi=CAT_ORDER.indexOf(b);
+    return (ai===-1?99:ai)-(bi===-1?99:bi);
+  });
   if(!visible.length){
     body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-size:14px"},"Sin cartas para mostrar"));
   }
@@ -959,6 +992,47 @@ function showCardMenu(card,deck){
   };
   panel.appendChild(removeBtn);
 
+  // Change category button
+  const changeCatBtn=h("button",{style:`width:100%;padding:13px;margin-bottom:10px;
+    border-radius:10px;border:1px solid var(--border2);cursor:pointer;
+    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
+    background:rgba(201,168,76,0.08);color:var(--gold);`},"📂  Cambiar categoría");
+  changeCatBtn.onclick=()=>{
+    // Replace button with inline select
+    const catDiv=h("div",{style:"margin-bottom:10px"});
+    const catLabel=h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:6px"},"MOVER A CATEGORÍA:");
+    const catSelect=document.createElement("select");
+    catSelect.style.cssText="width:100%;padding:10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'Cinzel',serif;font-size:11px;";
+    CAT_ORDER.forEach(c=>{
+      const o=document.createElement("option");
+      o.value=c;o.textContent=`${CAT_ICONS[c]||"○"} ${c}`;
+      if(c===card.cat)o.selected=true;
+      catSelect.appendChild(o);
+    });
+    const applyBtn=h("button",{style:`width:100%;padding:10px;margin-top:6px;
+      border-radius:8px;border:1px solid var(--gold);cursor:pointer;
+      font-family:'Cinzel',serif;font-size:11px;
+      background:var(--gold-dim);color:var(--gold-light);`},"Aplicar");
+    applyBtn.onclick=()=>{
+      const newCat=catSelect.value;
+      const c=deck.cards.find(x=>x.id===card.id);
+      if(c){
+        c.cat=newCat;
+        // If set as Commander, move to top
+        if(newCat==="Commander"){
+          deck.cards=deck.cards.filter(x=>x.id!==card.id);
+          deck.cards.unshift(c);
+          // Update deck commander image
+          deck.commanderSet=c.set;deck.commanderCn=c.cn;
+        }
+      }
+      toast(`📂 ${card.name} → ${newCat}`);save();overlay.remove();renderDeck();
+    };
+    catDiv.append(catLabel,catSelect,applyBtn);
+    changeCatBtn.replaceWith(catDiv);
+  };
+  panel.appendChild(changeCatBtn);
+
   // Cancel
   panel.appendChild(h("button",{style:`
     width:100%;padding:12px;
@@ -996,8 +1070,9 @@ function buildAddCardSheet(ov){
   const optRow=h("div",{style:"display:flex;gap:8px;margin-bottom:14px;align-items:center"});
   const catSel=document.createElement("select");
   catSel.style.flex="1";
+  catSel.id="cat-select-add";
   ALL_CATS.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=`${CAT_ICONS[c]||"○"} ${c}`;if(c===S.addCat)o.selected=true;catSel.appendChild(o);});
-  catSel.onchange=e=>S.addCat=e.target.value;
+  catSel.onchange=e=>{S.addCat=e.target.value;S.lastAutoCat=null;};
   optRow.appendChild(catSel);
   const stepper=h("div",{style:"display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:4px 10px"});
   stepper.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;font-size:20px;color:var(--gold);line-height:1;padding:0",onclick:()=>{S.addQty=Math.max(1,S.addQty-1);renderSheet();}},"−"));
@@ -1175,7 +1250,18 @@ function renderSearchResults(containerId, isCommander){
     if(imgUri){const ci=document.createElement("img");ci.src=imgUri;ci.alt=card.name;ci.style.cssText="width:100%;display:block;border-radius:8px;";tile.appendChild(ci);}
     else tile.appendChild(h("div",{class:"card-fallback"},card.name));
     if(already)tile.appendChild(h("div",{style:"position:absolute;top:3px;right:3px;font-size:8px;background:rgba(0,0,0,.85);border:1px solid var(--border2);border-radius:3px;padding:1px 4px;color:var(--gold)"},"✓"));
-    tile.onclick=()=>{S.addSelected=card;renderSearchResults(containerId,isCommander);};
+    tile.onclick=()=>{
+      S.addSelected=card;
+      // Auto-detect and pre-select category
+      if(S.addCat==="Sin categoría"||S.addCat===S.lastAutoCat){
+        S.addCat=autoDetectCat(card.type_line||"");
+        S.lastAutoCat=S.addCat;
+        // Update the select element if visible
+        const sel=document.getElementById("cat-select-add");
+        if(sel)sel.value=S.addCat;
+      }
+      renderSearchResults(containerId,isCommander);
+    };
     grid.appendChild(tile);
   });
   container.appendChild(grid);
@@ -1223,9 +1309,21 @@ function debounceCommanderSearch(q, containerId){
 
 function doAddCard(scryfallCard){
   const deck=S.decks[S.activeDeck];
-  deck.cards.push({id:"c-"+Date.now(),name:scryfallCard.name,set:scryfallCard.set,cn:scryfallCard.collector_number,cat:S.addCat,status:"need",qty:S.addQty});
+  const cat=S.addCat==="Sin categoría"?autoDetectCat(scryfallCard.type_line||""):S.addCat;
+  const newCard={id:"c-"+Date.now(),name:scryfallCard.name,set:scryfallCard.set,
+    cn:scryfallCard.collector_number,cat,status:"need",qty:S.addQty};
+  // If Commander: put at position 0, set as deck commander image if none
+  if(cat==="Commander"){
+    deck.cards.unshift(newCard);
+    if(!deck.commanderSet||!deck.commanderCn){
+      deck.commanderSet=scryfallCard.set;
+      deck.commanderCn=scryfallCard.collector_number;
+    }
+  } else {
+    deck.cards.push(newCard);
+  }
   S.sheet=null;S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;
-  toast("✦ "+scryfallCard.name+" agregada");save();render();
+  toast("✦ "+scryfallCard.name+" agregada como "+cat);save();render();
 }
 
 // ─── DECK MENU ─────────────────────────────────────────────────────────────
