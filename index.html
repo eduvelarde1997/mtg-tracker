@@ -497,10 +497,25 @@ function saveSession(s){try{localStorage.setItem(SESSION_KEY,JSON.stringify(s))}
 
 // Cloud: save/load a user's decks (shared=true so friends can read)
 async function cloudSaveDecks(username,decks){
-  try{await window.storage.set("decks_"+username,JSON.stringify(decks),true)}catch(e){}
+  const key="decks_"+username;
+  const data=JSON.stringify(decks);
+  // Save to cloud (shared so friends can see)
+  try{await window.storage.set(key,data,true);}catch(e){}
+  // Also save locally as backup
+  try{localStorage.setItem(key+"_local",data);}catch(e){}
 }
 async function cloudLoadDecks(username){
-  try{const r=await window.storage.get("decks_"+username,true);if(r&&r.value)return JSON.parse(r.value)}catch(e){}
+  const key="decks_"+username;
+  // Try cloud first
+  try{
+    const r=await window.storage.get(key,true);
+    if(r&&r.value) return JSON.parse(r.value);
+  }catch(e){}
+  // Fallback: local storage (same device)
+  try{
+    const l=localStorage.getItem(key+"_local");
+    if(l) return JSON.parse(l);
+  }catch(e){}
   return null;
 }
 async function cloudSaveProfile(username,data){
@@ -697,8 +712,10 @@ async function startSession(username,displayName,decks){
   S.decks=decks;S.activeDeck=0;
   saveSession({username,displayName});
   try{S.friendsList=JSON.parse(localStorage.getItem("friends_"+username)||"[]")}catch(e){S.friendsList=[];}
-  // Register user in shared registry every login (keeps it fresh)
-  registerUser(username,displayName); // async, non-blocking
+  // Register user in shared registry every login
+  registerUser(username,displayName);
+  // Sync decks to cloud immediately on login so friends can see them
+  if(decks&&decks.length) cloudSaveDecks(username,decks);
   document.getElementById("welcome-screen").style.display="none";
   document.getElementById("app").style.display="flex";
   render();
@@ -857,9 +874,14 @@ function renderNav(){
     profile:`<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
   };
   const fab=h("button",{class:"fab"+(ro?" disabled":""),onclick:ro?null:()=>{
-    if(S.view==="deck"){S.sheet="addCard";S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;}
-    else{S.sheet="newDeckChoice";}
-    render();
+    if(S.view==="deck"&&S.decks&&S.decks.length>0){
+      S.sheet="addCard";S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;render();
+    } else if(S.view==="deck"&&(!S.decks||!S.decks.length)){
+      // No deck selected - go create one first
+      S.sheet="newDeckChoice";render();
+    } else {
+      S.sheet="newDeckChoice";render();
+    }
   }},"+");
   nav.append(mkBtn(SVG.home,"Decks","home"),mkBtn(SVG.deck,"Deck","deck"),fab,mkBtn(SVG.friends,"Amigos","friends"),mkBtn(SVG.profile,"Perfil","profile"));
 }
@@ -1837,12 +1859,20 @@ function renderCardResults(containerId){
 
 function doAddCard(scryfallCard){
   const deck=S.decks[S.activeDeck];
+  if(!deck){toast("Selecciona un deck primero");closeSheet();return;}
   const cat=S.addCat==="Sin categoría"?autoDetectCat(scryfallCard.type_line||""):S.addCat;
   const newCard={id:"c-"+Date.now(),name:scryfallCard.name,set:scryfallCard.set,cn:scryfallCard.collector_number,cat,status:"need",qty:S.addQty};
-  if(cat==="Commander"){deck.cards.unshift(newCard);if(!deck.commanderSet){deck.commanderSet=scryfallCard.set;deck.commanderCn=scryfallCard.collector_number;}}
-  else deck.cards.push(newCard);
+  if(cat==="Commander"){
+    deck.cards.unshift(newCard);
+    // Update commander image if none set
+    deck.commanderSet=scryfallCard.set;
+    deck.commanderCn=scryfallCard.collector_number;
+  } else {
+    deck.cards.push(newCard);
+  }
   S.sheet=null;S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;
-  toast("✦ "+scryfallCard.name+" agregada como "+cat);saveDeckData();render();
+  toast("✦ "+scryfallCard.name+" agregada como "+cat);
+  saveDeckData();render();
 }
 
 function debounceCommanderSearch(q,containerId){
@@ -2131,7 +2161,11 @@ function renderProfile(){
 
   // Actions
   inner.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:11px;margin-bottom:8px",
-    onclick:async()=>{await cloudSaveDecks(S.currentUser.username,S.decks);toast("☁ Decks sincronizados!");}},"☁ Sincronizar decks"));
+    onclick:async()=>{
+      await cloudSaveDecks(S.currentUser.username,S.decks);
+      await registerUser(S.currentUser.username,S.currentUser.displayName);
+      toast("☁ Decks y perfil sincronizados — amigos pueden verte ahora!");
+    }},"☁ Sincronizar con amigos"));
 
   // Delete own account (not available for master)
   if(!master){
