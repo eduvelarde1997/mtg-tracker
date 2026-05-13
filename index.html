@@ -601,17 +601,87 @@ const DEFAULT_DECKS=[
 
 const STORAGE_KEY="mtg_tracker_v5";
 function load(){try{const s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
-function save(){try{localStorage.setItem(STORAGE_KEY,JSON.stringify({decks:S.decks,activeDeck:S.activeDeck}));}catch(e){}}
+function save(){
+  try{localStorage.setItem(STORAGE_KEY,JSON.stringify({decks:S.decks,activeDeck:S.activeDeck}));}catch(e){}
+  if(S.currentUser&&!S.viewingUser){
+    // Debounce cloud save
+    clearTimeout(save._t);
+    save._t=setTimeout(()=>saveUserDecks(S.currentUser.username,S.decks),1200);
+  }
+}
 
 let S={
   view:"home",decks:null,activeDeck:0,
   filter:"all",catFilter:"all",searchDeck:"",
   sheet:null,
   addQuery:"",addResults:[],addLoading:false,addSelected:null,addCat:"Sin categoría",addQty:1,
+  lastAutoCat:null,
   newDeck:{name:"",expansion:"",colors:[],commanderName:"",commanderImg:null,commanderSet:"",commanderCn:""},
   newDeckStep:0,
   toast:null,
+  // Profile system
+  currentUser:null,   // {username, passwordHash}
+  viewingUser:null,   // null = own profile, string = friend's username (read-only)
+  friendSearch:"",
+  preconSearch:"",preconExpansion:"all",preconResults:[],preconLoading:false,
 };
+
+// ─── PROFILE STORAGE ─────────────────────────────────────────────────────
+const PROFILE_KEY = "mtg_profile_v1";
+const FRIENDS_KEY = "mtg_friends_v1";
+
+function hashPass(str){
+  // Simple djb2 hash — not cryptographic but fine for local toy auth
+  let h=5381;
+  for(let i=0;i<str.length;i++) h=((h<<5)+h)+str.charCodeAt(i);
+  return (h>>>0).toString(36);
+}
+
+function loadProfile(){
+  try{const s=localStorage.getItem(PROFILE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}
+}
+function saveProfile(user){
+  try{localStorage.setItem(PROFILE_KEY,JSON.stringify(user));}catch(e){}
+}
+function loadFriends(){
+  try{const s=localStorage.getItem(FRIENDS_KEY);return s?JSON.parse(s):[];}catch(e){return [];}
+}
+function saveFriends(f){
+  try{localStorage.setItem(FRIENDS_KEY,JSON.stringify(f));}catch(e){}
+}
+
+// Save a user's decks to cloud under their username key
+async function saveUserDecks(username, decks){
+  const key="mtg_user_"+username;
+  try{await window.storage.set(key,JSON.stringify({decks,updatedAt:Date.now()}),true);}catch(e){}
+  // Also local
+  try{localStorage.setItem(key+"_local",JSON.stringify({decks,updatedAt:Date.now()}));}catch(e){}
+}
+async function loadUserDecks(username){
+  const key="mtg_user_"+username;
+  try{
+    const r=await window.storage.get(key,true);
+    if(r&&r.value){const d=JSON.parse(r.value);return d.decks||[];}
+  }catch(e){}
+  try{const l=localStorage.getItem(key+"_local");if(l){const d=JSON.parse(l);return d.decks||[];}}catch(e){}
+  return null;
+}
+async function loadUserProfile(username){
+  const key="mtg_userprofile_"+username;
+  try{
+    const r=await window.storage.get(key,true);
+    if(r&&r.value) return JSON.parse(r.value);
+  }catch(e){}
+  return null;
+}
+async function saveUserProfile(username,data){
+  const key="mtg_userprofile_"+username;
+  try{await window.storage.set(key,JSON.stringify(data),true);}catch(e){}
+}
+
+const savedProfile=loadProfile();
+if(savedProfile) S.currentUser=savedProfile;
+
 const saved=load();
 S.decks=saved?.decks||DEFAULT_DECKS.map(d=>({...d,cards:d.cards.map(c=>({...c}))}));
 S.activeDeck=saved?.activeDeck||0;
@@ -668,10 +738,18 @@ function toast(msg){
 // ─── RENDER ────────────────────────────────────────────────────────────────
 function render(){
   renderNav();
-  document.getElementById("view-home").style.display=S.view==="home"?"block":"none";
-  document.getElementById("view-deck").style.display=S.view==="deck"?"block":"none";
-  if(S.view==="home")renderHome();
-  if(S.view==="deck")renderDeck();
+  // Main views
+  const views=["home","deck","profile","friends","precons"];
+  views.forEach(v=>{
+    let el=document.getElementById("view-"+v);
+    if(!el){el=document.createElement("div");el.id="view-"+v;document.getElementById("main-scroll").appendChild(el);}
+    el.style.display=S.view===v?"block":"none";
+  });
+  if(S.view==="home") renderHome();
+  if(S.view==="deck") renderDeck();
+  if(S.view==="profile") renderProfile();
+  if(S.view==="friends") renderFriends();
+  if(S.view==="precons") renderPrecons();
   renderSheet();
 }
 
@@ -679,8 +757,12 @@ function render(){
 function renderNav(){
   const nav=document.getElementById("bottom-nav");
   nav.innerHTML="";
-  const mkBtn=(icon,label,view)=>{
-    const btn=h("button",{class:"nav-btn"+(S.view===view?" active":""),onclick:()=>{S.view=view;S.sheet=null;render();}});
+  const isReadOnly=!!S.viewingUser;
+
+  const mkBtn=(icon,label,view,disabled)=>{
+    const btn=h("button",{class:"nav-btn"+((S.view===view&&!disabled)?" active":""),
+      onclick:disabled?null:()=>{S.view=view;S.sheet=null;render();}});
+    btn.style.opacity=disabled?"0.4":"1";
     btn.innerHTML=icon;
     btn.appendChild(document.createTextNode(""));
     btn.appendChild(h("span",{},label));
@@ -688,9 +770,20 @@ function renderNav(){
   };
   const homeIcon=`<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><polyline points="9 21 9 12 15 12 15 21"/></svg>`;
   const listIcon=`<svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.2"/><circle cx="3" cy="12" r="1.2"/><circle cx="3" cy="18" r="1.2"/></svg>`;
-  const fab=h("button",{class:"fab","aria-label":"Agregar carta",
-    onclick:()=>{S.sheet=S.view==="deck"?"addCard":"newDeck";S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;render();}},"+");
-  nav.append(mkBtn(homeIcon,"Mis Decks","home"),fab,mkBtn(listIcon,"Deck","deck"));
+  const friendIcon=`<svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`;
+  const profileIcon=`<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
+
+  const fab=h("button",{class:"fab","aria-label":"Agregar",
+    style:isReadOnly?"opacity:0.3;pointer-events:none;":"",
+    onclick:isReadOnly?null:()=>{S.sheet=S.view==="deck"?"addCard":S.view==="precons"?"precons":"newDeck";S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;render();}},"+");
+
+  nav.append(
+    mkBtn(homeIcon,"Decks","home"),
+    mkBtn(friendIcon,"Amigos","friends"),
+    fab,
+    mkBtn(profileIcon,"Perfil","profile"),
+    mkBtn(listIcon,"Deck","deck",!S.decks?.length)
+  );
 }
 
 // ─── HOME ──────────────────────────────────────────────────────────────────
@@ -699,11 +792,22 @@ function renderHome(){
   el.innerHTML="";
 
   // Topbar
+  const isReadOnly=!!S.viewingUser;
+  const displayName=isReadOnly?S.viewingUser:(S.currentUser?S.currentUser.username:"Mi colección");
   const bar=h("div",{class:"topbar"});
-  bar.appendChild(h("div",{style:"flex:1"},
-    h("div",{style:'font-family:"Cinzel Decorative",serif;font-size:17px;color:var(--gold-light);letter-spacing:.06em;text-shadow:0 0 20px rgba(201,168,76,0.4)'},"⬡ MTG Tracker"),
-    h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:2px;font-family:'Cinzel',serif;letter-spacing:.1em"},"GESTOR DE DECKS")
-  ));
+  const titleWrap=h("div",{style:"flex:1;min-width:0"});
+  titleWrap.appendChild(h("div",{style:'font-family:"Cinzel Decorative",serif;font-size:17px;color:var(--gold-light);letter-spacing:.06em;text-shadow:0 0 20px rgba(201,168,76,0.4)'},"⬡ MTG Tracker"));
+  const subRow=h("div",{style:"display:flex;align-items:center;gap:8px;margin-top:2px"});
+  subRow.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);font-family:'Cinzel',serif;letter-spacing:.1em"},isReadOnly?"👁 VIENDO: "+displayName.toUpperCase():"GESTOR DE DECKS"));
+  if(isReadOnly){
+    const backBtn=h("button",{style:"font-size:10px;font-family:'Cinzel',serif;background:var(--danger-bg);border:1px solid var(--danger-light);border-radius:6px;padding:3px 8px;color:#ffaaaa;cursor:pointer;",
+      onclick:()=>{S.viewingUser=null;S.decks=S._ownDecks||S.decks;render();}},"✕ Volver a mis decks");
+    subRow.appendChild(backBtn);
+  }
+  bar.appendChild(titleWrap);
+  bar.appendChild(subRow);
+  // Oops — fix layout: append subRow inside titleWrap
+  titleWrap.appendChild(subRow);
   el.appendChild(bar);
 
   const body=h("div",{style:"padding:16px"});
@@ -1457,6 +1561,315 @@ async function showCardPreview(card){
     usdPrice.textContent="—";eurPrice.textContent="—";
     updatedEl.textContent="Sin conexión";
   }
+}
+
+// ─── PROFILE VIEW ──────────────────────────────────────────────────────────
+function renderProfile(){
+  const el=document.getElementById("view-profile");
+  el.innerHTML="";
+  el.appendChild(buildTopBar("Perfil","Mi cuenta"));
+
+  const body=h("div",{style:"padding:16px"});
+
+  if(!S.currentUser){
+    // Login / Register
+    body.appendChild(h("div",{class:"ornament"},"✦ ACCEDER ✦"));
+    const card=h("div",{class:"mtg-frame"});
+    const inner=h("div",{class:"mtg-frame-inner"});
+    inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"USUARIO"));
+    const userIn=h("input",{type:"text",placeholder:"Tu nombre de usuario...",style:"margin-bottom:10px"});
+    inner.appendChild(userIn);
+    inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"CONTRASEÑA"));
+    const passIn=h("input",{type:"password",placeholder:"Tu contraseña...",style:"margin-bottom:16px"});
+    inner.appendChild(passIn);
+    const btnRow=h("div",{style:"display:flex;gap:8px"});
+    // Login
+    btnRow.appendChild(h("button",{class:"btn btn-gold",style:"flex:1;padding:11px",onclick:async()=>{
+      const u=userIn.value.trim().toLowerCase();const p=passIn.value;
+      if(!u||!p){toast("Completa usuario y contraseña");return;}
+      const ph=hashPass(p);
+      // Check cloud profile
+      const cloudProf=await loadUserProfile(u);
+      if(cloudProf&&cloudProf.passwordHash!==ph){toast("Contraseña incorrecta");return;}
+      const user={username:u,passwordHash:ph};
+      S.currentUser=user;saveProfile(user);
+      // Load their cloud decks
+      const cloudDecks=await loadUserDecks(u);
+      if(cloudDecks&&cloudDecks.length){
+        S.decks=cloudDecks;save();
+        toast("✓ Bienvenido "+u+"! Decks sincronizados.");
+      } else {
+        // Save current decks to cloud
+        await saveUserDecks(u,S.decks);
+        await saveUserProfile(u,{username:u,passwordHash:ph,createdAt:Date.now()});
+        toast("✓ Cuenta creada para "+u+"!");
+      }
+      S.view="home";render();
+    }},"✦ Entrar / Crear"));
+    inner.appendChild(btnRow);
+    inner.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:12px;text-align:center;line-height:1.5"},"Si es tu primera vez, se crea la cuenta automáticamente. Tus decks se sincronizarán en la nube."));
+    card.appendChild(inner);body.appendChild(card);
+  } else {
+    // Logged in
+    body.appendChild(h("div",{class:"ornament"},"✦ MI PERFIL ✦"));
+    const card=h("div",{class:"mtg-frame",style:"margin-bottom:16px"});
+    const inner=h("div",{class:"mtg-frame-inner"});
+    const avatarDiv=h("div",{style:"width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--gold-dark));display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:22px;color:var(--gold-light);margin:0 auto 12px;border:2px solid var(--gold)"});
+    avatarDiv.textContent=S.currentUser.username[0].toUpperCase();
+    inner.appendChild(avatarDiv);
+    inner.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:18px;color:var(--gold-light);text-align:center;margin-bottom:4px"},S.currentUser.username));
+    const{tot,hav,pct}=deckStats({cards:S.decks.flatMap(d=>d.cards)});
+    inner.appendChild(h("div",{style:"text-align:center;font-size:12px;color:var(--text-dim);margin-bottom:14px"},S.decks.length+" decks · "+hav+"/"+tot+" cartas ("+pct+"%)"));
+    // Sync status
+    const syncBtn=h("button",{class:"btn btn-gold",style:"width:100%;padding:11px;margin-bottom:10px",onclick:async()=>{
+      syncBtn.textContent="Sincronizando...";
+      await saveUserDecks(S.currentUser.username,S.decks);
+      toast("✓ Decks sincronizados en la nube");syncBtn.textContent="☁ Sincronizar decks ahora";
+    }},"☁ Sincronizar decks ahora");
+    inner.appendChild(syncBtn);
+    inner.appendChild(h("button",{class:"btn",style:"width:100%;padding:11px",onclick:()=>{
+      S.currentUser=null;saveProfile(null);toast("Sesión cerrada");S.view="home";render();
+    }},"Cerrar sesión"));
+    card.appendChild(inner);body.appendChild(card);
+  }
+  el.appendChild(body);
+}
+
+// ─── FRIENDS VIEW ──────────────────────────────────────────────────────────
+function renderFriends(){
+  const el=document.getElementById("view-friends");
+  el.innerHTML="";
+  el.appendChild(buildTopBar("Amigos","Ver decks de otros jugadores"));
+  const body=h("div",{style:"padding:16px"});
+
+  if(!S.currentUser){
+    body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em"},"Crea un perfil para ver los decks de tus amigos"));
+    body.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:12px;margin-top:16px",onclick:()=>{S.view="profile";render();}},"✦ Crear perfil"));
+    el.appendChild(body);return;
+  }
+
+  body.appendChild(h("div",{class:"ornament"},"✦ BUSCAR AMIGO ✦"));
+  const searchRow=h("div",{style:"display:flex;gap:8px;margin-bottom:16px"});
+  const si=h("input",{type:"text",placeholder:"Usuario de tu amigo...",value:S.friendSearch||""});
+  si.addEventListener("input",e=>S.friendSearch=e.target.value);
+  const searchBtn=h("button",{class:"btn btn-gold",style:"padding:10px 16px;white-space:nowrap",onclick:()=>searchFriend(si.value.trim().toLowerCase())},"Buscar");
+  searchRow.append(si,searchBtn);
+  body.appendChild(searchRow);
+
+  // Friends list
+  const friends=loadFriends();
+  if(friends.length){
+    body.appendChild(h("div",{class:"ornament"},"✦ MIS AMIGOS ✦"));
+    friends.forEach(f=>{
+      const fc=h("div",{style:"background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;",
+        onclick:()=>viewFriendDecks(f.username)});
+      const av=h("div",{style:"width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1a4a8a,#3a8a52);display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:16px;color:var(--gold-light);flex-shrink:0;"});
+      av.textContent=f.username[0].toUpperCase();
+      const info=h("div",{style:"flex:1;min-width:0"});
+      info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:2px"},f.username));
+      info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim)"},"Toca para ver sus decks"));
+      const removeBtn=h("button",{style:"background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:18px;",
+        onclick:(e)=>{e.stopPropagation();const fl=loadFriends().filter(x=>x.username!==f.username);saveFriends(fl);renderFriends();}
+      },"×");
+      fc.append(av,info,removeBtn);
+      body.appendChild(fc);
+    });
+  } else {
+    body.appendChild(h("div",{style:"text-align:center;padding:20px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Busca el usuario de un amigo para ver sus decks"));
+  }
+  el.appendChild(body);
+}
+
+async function searchFriend(username){
+  if(!username){toast("Escribe un nombre de usuario");return;}
+  if(username===S.currentUser?.username){toast("Ese eres tú mismo");return;}
+  toast("Buscando "+username+"...");
+  const prof=await loadUserProfile(username);
+  if(!prof){toast("Usuario '"+username+"' no encontrado");return;}
+  // Add to friends
+  const friends=loadFriends();
+  if(!friends.find(f=>f.username===username)){
+    friends.push({username});saveFriends(friends);
+  }
+  toast("✓ "+username+" agregado a amigos");
+  renderFriends();
+}
+
+async function viewFriendDecks(username){
+  toast("Cargando decks de "+username+"...");
+  const decks=await loadUserDecks(username);
+  if(!decks||!decks.length){toast("No se encontraron decks de "+username);return;}
+  S._ownDecks=S.decks; // save own decks
+  S.viewingUser=username;
+  S.decks=decks;
+  S.activeDeck=0;
+  S.view="home";
+  toast("👁 Viendo decks de "+username);
+  render();
+}
+
+// ─── PRECONS VIEW ──────────────────────────────────────────────────────────
+function renderPrecons(){
+  const el=document.getElementById("view-precons");
+  el.innerHTML="";
+  el.appendChild(buildTopBar("Precons","Importar decks oficiales","home"));
+  const body=h("div",{style:"padding:16px"});
+  body.appendChild(h("div",{class:"ornament"},"✦ BUSCAR PRECON ✦"));
+
+  // Search input
+  const si=h("input",{type:"search",placeholder:"Busca commander o nombre del precon...",value:S.preconSearch||"",style:"margin-bottom:12px"});
+  si.addEventListener("input",e=>{S.preconSearch=e.target.value;debouncePreconSearch(e.target.value);});
+  body.appendChild(si);setTimeout(()=>si.focus&&si.focus(),150);
+
+  // Quick filter chips for recent sets
+  const sets=[
+    {code:"tla",name:"Avatar: TLA"},
+    {code:"soc",name:"Secrets of Strixhaven"},
+    {code:"fin",name:"Final Fantasy"},
+    {code:"tdm",name:"Tarkir: Dragonstorm"},
+    {code:"aed",name:"Aetherdrift"},
+    {code:"dsk",name:"Duskmourn"},
+    {code:"otj",name:"Thunder Junction"},
+    {code:"mh3",name:"Modern Horizons 3"},
+    {code:"mkm",name:"Murders at Karlov"},
+    {code:"lci",name:"Lost Caverns"},
+    {code:"cmm",name:"Commander Masters"},
+  ];
+  const chipsRow=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:14px;"});
+  const allChip=h("button",{class:"pill"+(S.preconExpansion==="all"?" active":""),onclick:()=>{S.preconExpansion="all";if(S.preconSearch)debouncePreconSearch(S.preconSearch);renderPrecons();}
+  },"Todos");
+  chipsRow.appendChild(allChip);
+  sets.forEach(s=>{
+    const chip=h("button",{class:"pill"+(S.preconExpansion===s.code?" active":""),
+      onclick:()=>{S.preconExpansion=s.code;debouncePreconSearch(s.name);si.value=s.name;S.preconSearch=s.name;renderPrecons();}},s.name);
+    chipsRow.appendChild(chip);
+  });
+  body.appendChild(chipsRow);
+
+  // Results container
+  const resultsDiv=h("div",{id:"precon-results"});
+  if(S.preconLoading){
+    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;"},"✦ Buscando precons..."));
+  } else if(S.preconResults.length){
+    S.preconResults.forEach(deck=>resultsDiv.appendChild(buildPreconCard(deck)));
+  } else if(S.preconSearch){
+    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:30px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},"Sin resultados. Intenta con otro nombre."));
+  } else {
+    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:30px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Busca un commander o selecciona un set arriba"));
+  }
+  body.appendChild(resultsDiv);
+  el.appendChild(body);
+}
+
+function buildPreconCard(deck){
+  const card=h("div",{style:"background:var(--surface);border:1px solid var(--border2);border-radius:14px;overflow:hidden;margin-bottom:14px;"});
+  // Commander image header
+  const imgWrap=h("div",{style:"position:relative;height:110px;overflow:hidden;background:#0a0508;"});
+  const img=document.createElement("img");
+  img.src=deck.imgUri||"";img.alt=deck.commander;
+  img.style.cssText="width:100%;height:100%;object-fit:cover;object-position:top;";
+  img.onerror=()=>{img.style.display="none";};
+  const grad=h("div",{style:"position:absolute;inset:0;background:linear-gradient(0deg,#150d18 0%,transparent 100%);"});
+  imgWrap.append(img,grad);
+  // Name overlay
+  const nameOv=h("div",{style:"position:absolute;bottom:8px;left:12px;right:12px;"});
+  nameOv.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:3px;"},deck.commander));
+  const metaRow=h("div",{style:"display:flex;align-items:center;gap:6px;"});
+  metaRow.appendChild(h("span",{style:"font-size:10px;color:var(--text-dim);"},deck.setName));
+  if(deck.colors&&deck.colors.length) metaRow.appendChild(manaRow(deck.colors));
+  nameOv.appendChild(metaRow);
+  imgWrap.appendChild(nameOv);
+  card.appendChild(imgWrap);
+  // Body
+  const body=h("div",{style:"padding:12px 14px;"});
+  body.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-bottom:10px;font-family:'Cinzel',serif;letter-spacing:.06em;"},deck.deckName||deck.commander));
+  const btnRow=h("div",{style:"display:flex;gap:8px;"});
+  const importBtn=h("button",{class:"btn btn-gold",style:"flex:2;padding:10px;",onclick:()=>importPrecon(deck)},"✦ Importar deck");
+  const previewBtn=h("button",{class:"btn",style:"flex:1;padding:10px;",onclick:()=>previewPrecon(deck)},"Ver cartas");
+  btnRow.append(importBtn,previewBtn);
+  body.appendChild(btnRow);
+  card.appendChild(body);
+  return card;
+}
+
+let preconTimer;
+function debouncePreconSearch(q){
+  clearTimeout(preconTimer);
+  if(!q||q.length<2){S.preconLoading=false;S.preconResults=[];renderPrecons();return;}
+  S.preconLoading=true;renderPrecons();
+  preconTimer=setTimeout(async()=>{
+    await fetchPrecons(q);
+  },500);
+}
+
+async function fetchPrecons(q){
+  try{
+    // Search Scryfall for legendary creatures matching query, filter by those in precon sets
+    const query=`"${q}" is:commander`;
+    const url=`https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=released&unique=cards`;
+    const r=await fetch(url);
+    if(!r.ok){S.preconLoading=false;S.preconResults=[];renderPrecons();return;}
+    const d=await r.json();
+    const cards=d.data||[];
+    // Build precon deck entries from results
+    S.preconResults=cards.slice(0,12).map(c=>({
+      id:c.id,
+      commander:c.name,
+      deckName:c.name+" Commander Deck",
+      setCode:c.set,
+      setName:c.set_name,
+      colors:(c.color_identity||[]),
+      commanderSet:c.set,
+      commanderCn:c.collector_number,
+      imgUri:c.image_uris?.art_crop||c.card_faces?.[0]?.image_uris?.art_crop||c.image_uris?.normal,
+      scryfallCard:c,
+    }));
+  }catch(e){S.preconResults=[];}
+  S.preconLoading=false;renderPrecons();
+}
+
+async function importPrecon(deck){
+  toast("Importando "+deck.commander+"...");
+  // Create new deck with commander card, user adds rest
+  const newDeck={
+    id:"precon-"+Date.now(),
+    name:deck.commander,
+    expansion:deck.setName,
+    colors:deck.colors,
+    format:"Commander",bracket:2,
+    commanderSet:deck.commanderSet,
+    commanderCn:deck.commanderCn,
+    cards:[{
+      id:"cmd-"+Date.now(),
+      name:deck.commander,
+      set:deck.commanderSet,
+      cn:deck.commanderCn,
+      cat:"Commander",status:"need",qty:1
+    }]
+  };
+  if(S.viewingUser){toast("No puedes editar decks ajenos");return;}
+  S.decks.push(newDeck);
+  S.activeDeck=S.decks.length-1;
+  S.view="deck";save();
+  toast("✓ "+deck.commander+" importado! Agrega las cartas con +");render();
+}
+
+async function previewPrecon(deck){
+  // Show commander card preview
+  showCardPreview({name:deck.commander,set:deck.commanderSet,cn:deck.commanderCn});
+}
+
+// ─── TOPBAR HELPER ─────────────────────────────────────────────────────────
+function buildTopBar(title,sub,backTo){
+  const bar=h("div",{class:"topbar"});
+  if(backTo){
+    bar.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;color:var(--gold);display:flex;align-items:center;padding:4px 8px 4px 0;font-size:22px",onclick:()=>{S.view=backTo;render();}},"‹"));
+  }
+  bar.appendChild(h("div",{style:"flex:1;min-width:0"},
+    h("div",{style:"font-family:'Cinzel',serif;font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"},title),
+    sub?h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:1px"},sub):null
+  ));
+  return bar;
 }
 
 // ─── INIT ──────────────────────────────────────────────────────────────────
