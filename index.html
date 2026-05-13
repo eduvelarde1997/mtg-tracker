@@ -237,9 +237,9 @@ select{
       <div class="card-back">
         <div class="card-back-inner">
           <img src="https://cards.scryfall.io/large/back/e/d/ed5c46da-8a0e-41e4-8f28-5a74773b1497.jpg"
-               onerror="this.onerror=null;this.src='https://api.scryfall.com/cards/named?exact=lightning+bolt&format=image&version=normal'"
-               style="width:82%;border-radius:10px;opacity:0.9;box-shadow:0 4px 20px rgba(0,0,0,0.5);"
-               alt="MTG Card">
+               onerror="this.onerror=null;this.src='https://upload.wikimedia.org/wikipedia/en/a/aa/Magic_the_gathering-card_back.jpg'"
+               style="width:88%;border-radius:12px;opacity:1;box-shadow:0 6px 30px rgba(0,0,0,0.7);"
+               alt="MTG Card Back">
           <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--gold);letter-spacing:.15em">TOCA PARA COMENZAR</div>
         </div>
       </div>
@@ -505,6 +505,62 @@ async function cloudLoadDecks(username){
 }
 async function cloudSaveProfile(username,data){
   try{await window.storage.set("profile_"+username,JSON.stringify(data),true)}catch(e){}
+  // Also register in global users directory
+  try{
+    const regKey="mtg_users_registry";
+    let registry=[];
+    const existing=await window.storage.get(regKey,true);
+    if(existing&&existing.value) registry=JSON.parse(existing.value);
+    if(!registry.find(u=>u.username===username)){
+      registry.push({username,displayName:data.displayName||username,joinedAt:Date.now()});
+      await window.storage.set(regKey,JSON.stringify(registry),true);
+    }
+  }catch(e){}
+}
+
+async function loadAllUsers(){
+  try{
+    const r=await window.storage.get("mtg_users_registry",true);
+    if(r&&r.value) return JSON.parse(r.value);
+  }catch(e){}
+  return [];
+}
+
+function isMaster(){return S.currentUser?.username==="eduardo";}
+
+async function deleteUserAccount(username){
+  // Remove from global registry
+  try{
+    const r=await window.storage.get("mtg_users_registry",true);
+    if(r&&r.value){
+      let reg=JSON.parse(r.value);
+      reg=reg.filter(u=>u.username!==username);
+      await window.storage.set("mtg_users_registry",JSON.stringify(reg),true);
+      allUsersCache=reg;
+    }
+  }catch(e){}
+  // Delete their profile and decks from cloud
+  try{await window.storage.delete("profile_"+username,true);}catch(e){}
+  try{await window.storage.delete("decks_"+username,true);}catch(e){}
+  // Remove from local profiles store
+  const profiles=loadProfiles();
+  delete profiles[username];
+  saveProfiles(profiles);
+  toast("🗑 @"+username+" eliminado");
+}
+
+async function deleteOwnAccount(){
+  const u=S.currentUser.username;
+  if(u==="eduardo"){toast("El usuario master no puede eliminarse");return;}
+  await deleteUserAccount(u);
+  // Logout
+  S.currentUser=null;saveSession(null);S.decks=[];S.activeDeck=0;
+  document.getElementById("app").style.display="none";
+  document.getElementById("welcome-screen").style.display="flex";
+  document.getElementById("card-flipper").classList.remove("flipped");
+  document.getElementById("tap-hint").style.opacity="1";
+  cardFlipped=false;
+  toast("Cuenta eliminada");
 }
 async function cloudLoadProfile(username){
   try{const r=await window.storage.get("profile_"+username,true);if(r&&r.value)return JSON.parse(r.value)}catch(e){}
@@ -589,6 +645,8 @@ async function doLogin(){
     if(!profiles[u]){profiles[u]={username:u,passwordHash:ph,displayName:"Eduardo"};saveProfiles(profiles);}
     let decks=await cloudLoadDecks(u);
     if(!decks||!decks.length) decks=EDUARDO_DECKS;
+    // Ensure Eduardo is in global registry
+    await cloudSaveProfile(u,{username:u,displayName:"Eduardo",createdAt:Date.now()});
     await startSession(u,"Eduardo",decks);
   } else if(profiles[u]){
     if(profiles[u].passwordHash!==ph){errEl.textContent="Contraseña incorrecta";return;}
@@ -625,6 +683,44 @@ function saveFriends(){
   if(!S.currentUser) return;
   localStorage.setItem("friends_"+S.currentUser.username,JSON.stringify(S.friendsList));
 }
+
+// ── NAVIGATION HISTORY STACK ──────────────────────────────────────────────
+const navHistory=[];
+
+function goView(v){
+  // Push current view to history before navigating
+  if(S.view && S.view!==v){
+    navHistory.push({view:S.view,sheet:S.sheet,activeDeck:S.activeDeck});
+    // Push a state to browser history so Android back button fires popstate
+    try{history.pushState({v},"")}catch(e){}
+  }
+  S.view=v;S.sheet=null;render();
+}
+
+function goBack(){
+  if(S.sheet){S.sheet=null;render();return;}
+  const prev=navHistory.pop();
+  if(prev){
+    S.view=prev.view;S.sheet=prev.sheet||null;
+    if(prev.activeDeck!=null) S.activeDeck=prev.activeDeck;
+    // Replace browser history state
+    try{history.replaceState({v:S.view},"")}catch(e){}
+    render();
+  } else {
+    // Nothing to go back to — do nothing (don't exit app)
+    try{history.pushState({v:S.view},"")}catch(e){}
+  }
+}
+
+// Intercept Android back button / browser back
+window.addEventListener("popstate",(e)=>{
+  goBack();
+  // Always prevent actual navigation
+  try{history.pushState({v:S.view},"")}catch(e){}
+});
+
+// Initialize history API
+try{history.replaceState({v:"home"},"");}catch(e){}
 
 // Check for existing session on load
 (async()=>{
@@ -704,7 +800,7 @@ function render(){
   VIEWS.forEach(v=>getViewEl(v).style.display=S.view===v?"block":"none");
   if(S.view==="home")renderHome();
   else if(S.view==="deck")renderDeck();
-  else if(S.view==="friends")renderFriends();
+  else if(S.view==="friends"){if(friendsTab==="discover"&&!allUsersCache)loadFriendsView();else renderFriends();}
   else if(S.view==="profile")renderProfile();
   else if(S.view==="precons")renderPrecons();
   renderSheet();
@@ -734,7 +830,7 @@ function renderNav(){
   }},"+");
   nav.append(mkBtn(SVG.home,"Decks","home"),mkBtn(SVG.deck,"Deck","deck"),fab,mkBtn(SVG.friends,"Amigos","friends"),mkBtn(SVG.profile,"Perfil","profile"));
 }
-function goView(v){S.view=v;S.sheet=null;render();}
+// goView defined in navigation stack above
 
 // ═══════════════════════════════════════════════════════════════════════════
 // HOME
@@ -1126,52 +1222,226 @@ const PRECON_SETS=[
   {code:"stx",name:"Strixhaven: School of Mages"},
 ];
 
+// Track current precon tab
+let preconTab='official'; // 'official' | 'community'
+let preconSelectedSet=null;
+
 function buildPreconPicker(ov){
-  const sheet=h("div",{class:"sheet"});sheet.appendChild(sheetHandle());
-  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:13px;color:var(--gold-light);margin-bottom:14px;text-align:center;letter-spacing:.06em"},"🎴 Importar Precon"));
+  const sheet=h("div",{class:"sheet"});
+  sheet.appendChild(sheetHandle());
+  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:13px;color:var(--gold-light);margin-bottom:12px;text-align:center;letter-spacing:.06em"},"🎴 Importar Precon"));
 
-  // Search input
-  const si=h("input",{type:"search",placeholder:"Busca commander o nombre del precon...",value:S.preconQuery||"",style:"margin-bottom:12px"});
-  si.addEventListener("input",e=>{S.preconQuery=e.target.value;debouncePreconSearch(e.target.value);});
-  sheet.appendChild(si);setTimeout(()=>si.focus(),150);
+  // Tab switcher
+  const tabs=h("div",{style:"display:flex;gap:0;margin-bottom:14px;border:1px solid var(--border2);border-radius:10px;overflow:hidden;"});
+  const mkTab=(label,val)=>{
+    const active=preconTab===val;
+    const t=h("button",{style:`flex:1;padding:10px;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:11px;letter-spacing:.08em;background:${active?"var(--gold-dim)":"transparent"};color:${active?"var(--gold-light)":"var(--text-dim)"};border-right:${val==="official"?"1px solid var(--border2)":"none"};`,
+      onclick:()=>{preconTab=val;preconSelectedSet=null;S.preconResults=[];buildPreconPicker(ov);}},label);
+    return t;
+  };
+  tabs.append(mkTab("⚔ Oficiales","official"), mkTab("👥 Comunidad","community"));
+  sheet.appendChild(tabs);
 
-  // Set chips
-  const chips=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:14px;"});
-  PRECON_SETS.forEach(s=>{
-    chips.appendChild(h("button",{class:"pill",style:"font-size:10px;padding:4px 10px;",onclick:()=>{
-      S.preconQuery=s.name;si.value=s.name;debouncePreconSearch(s.name);
-    }},s.name));
-  });
-  sheet.appendChild(chips);
+  if(preconTab==="official"){
+    // Show set groups by year
+    if(!preconSelectedSet){
+      // Show year groups
+      const setList=h("div",{style:"max-height:360px;overflow-y:auto;"});
+      OFFICIAL_PRECON_SETS.forEach(group=>{
+        setList.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:.15em;margin:10px 0 6px"},group.year));
+        const row=h("div",{style:"display:flex;gap:6px;flex-wrap:wrap;"});
+        group.sets.forEach(s=>{
+          const btn=h("button",{style:"padding:6px 12px;border-radius:20px;border:1px solid var(--border2);background:var(--surface2);color:var(--text);font-family:'Cinzel',serif;font-size:10px;cursor:pointer;transition:all .15s;",
+            onclick:()=>{preconSelectedSet=s;S.preconResults=[];buildPreconPicker(ov);searchPreconsBySet(s.code);}},s.label);
+          btn.onmouseover=()=>{btn.style.borderColor="var(--gold)";btn.style.color="var(--gold-light)";};
+          btn.onmouseout=()=>{btn.style.borderColor="var(--border2)";btn.style.color="var(--text)";};
+          row.appendChild(btn);
+        });
+        setList.appendChild(row);
+      });
+      sheet.appendChild(setList);
+    } else {
+      // Show commanders of selected set
+      const backBtn=h("button",{style:"display:flex;align-items:center;gap:6px;background:none;border:none;color:var(--gold);font-family:'Cinzel',serif;font-size:11px;cursor:pointer;margin-bottom:12px;",
+        onclick:()=>{preconSelectedSet=null;S.preconResults=[];buildPreconPicker(ov);}});
+      backBtn.innerHTML="‹ <span>"+preconSelectedSet.name+"</span>";
+      sheet.appendChild(backBtn);
 
-  // Results
-  const rd=h("div",{id:"precon-search-results",style:"max-height:300px;overflow-y:auto;"});
-  if(S.preconLoading) rd.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;"},"✦ Buscando precons..."));
-  else if(S.preconResults.length) S.preconResults.forEach(deck=>rd.appendChild(buildPreconRow(deck)));
-  else rd.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},S.preconQuery?"Sin resultados":"Busca o elige un set arriba"));
-  sheet.appendChild(rd);
+      const rd=h("div",{id:"precon-search-results",style:"max-height:320px;overflow-y:auto;"});
+      if(!S.preconResults.length){
+        rd.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;"},"✦ Cargando commanders..."));
+        // Trigger search
+        setTimeout(()=>searchPreconsBySet(preconSelectedSet.code),50);
+      } else {
+        S.preconResults.forEach(deck=>rd.appendChild(buildPreconRow(deck)));
+      }
+      sheet.appendChild(rd);
+    }
+  } else {
+    // Community tab - popular commanders + user search
+    sheet.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px;"},"BUSCAR COMMANDER"));
+    const si=h("input",{type:"search",placeholder:"Nombre del commander...",value:S.preconQuery||"",style:"margin-bottom:14px"});
+    si.addEventListener("input",e=>{S.preconQuery=e.target.value;if(!e.target.value){S.preconResults=[];buildPreconPicker(ov);}else debouncePreconSearch(e.target.value);});
+    sheet.appendChild(si);setTimeout(()=>si.focus(),50);
+
+    if(!S.preconQuery){
+      // Show popular commanders grid
+      sheet.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px;"},"COMMANDERS POPULARES EN LA COMUNIDAD"));
+      const popularGrid=h("div",{style:"display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:280px;overflow-y:auto;"});
+      POPULAR_COMMANDERS.forEach(cmd=>{
+        const tile=h("div",{style:"position:relative;cursor:pointer;border-radius:8px;overflow:hidden;background:var(--surface2);border:1px solid var(--border);",
+          onclick:()=>{S.preconQuery=cmd.name;si.value=cmd.name;debouncePreconSearch(cmd.name);}});
+        const img=document.createElement("img");
+        img.src=`https://api.scryfall.com/cards/${cmd.set}/${cmd.cn}?format=image&version=art_crop`;
+        img.style.cssText="width:100%;aspect-ratio:4/3;object-fit:cover;display:block;";
+        img.onerror=()=>{img.style.display="none";};
+        tile.appendChild(img);
+        const label=h("div",{style:"padding:6px 6px 4px;background:linear-gradient(0deg,rgba(0,0,0,.9),transparent);"});
+        label.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"},cmd.name));
+        label.appendChild(h("div",{style:"font-size:8px;color:var(--text-dim);"},cmd.colors.join("")));
+        // Gradient overlay
+        const grad=h("div",{style:"position:absolute;bottom:0;left:0;right:0;"});
+        grad.appendChild(label);tile.appendChild(grad);
+        popularGrid.appendChild(tile);
+      });
+      sheet.appendChild(popularGrid);
+    } else {
+      const rd=h("div",{id:"precon-search-results",style:"max-height:280px;overflow-y:auto;"});
+      if(S.preconResults.length) S.preconResults.forEach(d=>rd.appendChild(buildPreconRow(d)));
+      else rd.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},"Buscando..."));
+      sheet.appendChild(rd);
+    }
+  }
+
   sheet.appendChild(h("button",{class:"btn",style:"width:100%;padding:12px;margin-top:12px",onclick:closeSheet},"Cancelar"));
   ov.appendChild(sheet);
 }
 
 function buildPreconRow(deck){
-  const row=h("div",{style:"display:flex;gap:10px;align-items:center;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;"});
+  const wrap=h("div",{style:"background:var(--surface2);border:1px solid var(--border);border-radius:12px;margin-bottom:10px;overflow:hidden;"});
+  // Preview header
+  const header=h("div",{style:"display:flex;gap:10px;align-items:center;padding:10px;cursor:pointer;",onclick:()=>showPreconPreview(deck)});
   if(deck.imgUri){
     const ci=document.createElement("img");ci.src=deck.imgUri;ci.alt=deck.commander;
-    ci.style.cssText="width:52px;height:52px;border-radius:6px;object-fit:cover;object-position:top;flex-shrink:0;";
-    row.appendChild(ci);
+    ci.style.cssText="width:56px;height:56px;border-radius:8px;object-fit:cover;object-position:top;flex-shrink:0;box-shadow:0 2px 8px rgba(0,0,0,.5);";
+    header.appendChild(ci);
+  } else {
+    const ph=h("div",{style:"width:56px;height:56px;border-radius:8px;background:var(--surface);border:1px solid var(--border2);display:flex;align-items:center;justify-content:center;color:var(--text-faint);font-size:20px;flex-shrink:0;"},"🎴");
+    header.appendChild(ph);
   }
   const info=h("div",{style:"flex:1;min-width:0"});
   info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--gold-light);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"},deck.commander));
-  info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);margin-bottom:4px;"},deck.setName));
-  if(deck.colors&&deck.colors.length)info.appendChild(manaRow(deck.colors));
-  row.appendChild(info);
-  const importBtn=h("button",{class:"btn btn-gold",style:"padding:8px 12px;font-size:10px;flex-shrink:0;",onclick:(e)=>{e.stopPropagation();importPreconDeck(deck);}},"+");
-  row.appendChild(importBtn);
-  return row;
+  info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);margin-bottom:4px;"},deck.setName||""));
+  const mr=h("div",{style:"display:flex;align-items:center;gap:6px;"});
+  if(deck.colors&&deck.colors.length)mr.appendChild(manaRow(deck.colors));
+  mr.appendChild(h("span",{style:"font-size:9px;color:var(--text-faint);font-family:'Cinzel',serif;"},"Toca para ver cartas"));
+  info.appendChild(mr);header.appendChild(info);
+  // Chevron
+  header.appendChild(h("span",{style:"color:var(--text-faint);font-size:16px;"},"›"));
+  wrap.appendChild(header);
+  // Import button
+  const footer=h("div",{style:"padding:0 10px 10px;display:flex;gap:8px;"});
+  footer.appendChild(h("button",{class:"btn btn-gold",style:"flex:1;padding:9px;font-size:11px;",onclick:()=>importPreconDeck(deck)},"✦ Importar deck completo"));
+  wrap.appendChild(footer);
+  return wrap;
+}
+
+// Precon preview modal
+async function showPreconPreview(deck){
+  // Show loading modal
+  const modal=h("div",{style:"position:fixed;inset:0;z-index:500;background:rgba(0,0,0,.92);backdrop-filter:blur(8px);display:flex;flex-direction:column;overflow:hidden;"});
+  modal.onclick=e=>{if(e.target===modal)modal.remove();};
+
+  // Header
+  const header=h("div",{style:"display:flex;align-items:center;gap:12px;padding:16px;border-bottom:1px solid var(--border2);"});
+  if(deck.imgUri){const ci=document.createElement("img");ci.src=deck.imgUri;ci.style.cssText="width:48px;height:48px;border-radius:8px;object-fit:cover;object-position:top;flex-shrink:0;";header.appendChild(ci);}
+  const hi=h("div",{style:"flex:1;min-width:0;"});
+  hi.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:14px;color:var(--gold-light);"},deck.commander));
+  hi.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);"},deck.setName));
+  header.appendChild(hi);
+  header.appendChild(h("button",{style:"background:none;border:none;color:var(--text-dim);font-size:24px;cursor:pointer;padding:4px;",onclick:()=>modal.remove()},"×"));
+  modal.appendChild(header);
+
+  // Loading state
+  const body=h("div",{style:"flex:1;overflow-y:auto;padding:16px;"});
+  body.appendChild(h("div",{style:"text-align:center;padding:30px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;"},"✦ Cargando cartas del precon..."));
+  modal.appendChild(body);
+  document.body.appendChild(modal);
+
+  // Import button at bottom
+  const footer=h("div",{style:"padding:14px 16px calc(14px + var(--safe-bottom));border-top:1px solid var(--border2);"});
+  footer.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:12px;font-size:13px;",onclick:()=>{modal.remove();importPreconDeck(deck);}},"✦ Importar este deck"));
+  modal.appendChild(footer);
+
+  // Fetch cards
+  try{
+    const setCode=deck.commanderSet;
+    let url=`https://api.scryfall.com/cards/search?q=set%3A${setCode}&order=type&unique=cards`;
+    const r=await fetch(url,{headers:{"Accept":"application/json"}});
+    if(!r.ok){body.innerHTML='<div style="text-align:center;padding:30px;color:var(--danger-light);font-family:Cinzel,serif;font-size:12px;">Error cargando cartas. Igual puedes importar el deck.</div>';return;}
+    const d=await r.json();
+    const cards=d.data||[];
+    body.innerHTML="";
+
+    // Group by type
+    const groups={Commander:[],Criaturas:[],Instantáneos:[],Sorcerías:[],Encantamientos:[],Artefactos:[],Tierras:[],Otras:[]};
+    cards.forEach(c=>{
+      const t=(c.type_line||"").toLowerCase();
+      if(c.name===deck.commander) groups.Commander.push(c);
+      else if(t.includes("land")) groups.Tierras.push(c);
+      else if(t.includes("creature")) groups.Criaturas.push(c);
+      else if(t.includes("instant")) groups.Instantáneos.push(c);
+      else if(t.includes("sorcery")) groups.Sorcerías.push(c);
+      else if(t.includes("enchantment")) groups.Encantamientos.push(c);
+      else if(t.includes("artifact")) groups.Artefactos.push(c);
+      else groups.Otras.push(c);
+    });
+
+    const total=cards.length;
+    body.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:14px;letter-spacing:.1em"},total+" CARTAS EN ESTE PRECON"));
+
+    Object.entries(groups).forEach(([cat,cs])=>{
+      if(!cs.length) return;
+      const sec=h("div",{style:"margin-bottom:16px;"});
+      sec.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:8px;padding-bottom:4px;border-bottom:1px solid var(--border);"},`${CAT_ICONS[cat]||"○"} ${cat.toUpperCase()} (${cs.length})`));
+      const grid=h("div",{style:"display:grid;grid-template-columns:repeat(3,1fr);gap:8px;"});
+      cs.forEach(c=>{
+        const imgUri=c.image_uris?.small||c.card_faces?.[0]?.image_uris?.small;
+        const tile=h("div",{style:"position:relative;"});
+        if(imgUri){const ci=document.createElement("img");ci.src=imgUri;ci.style.cssText="width:100%;border-radius:6px;display:block;";tile.appendChild(ci);}
+        else{const fb=h("div",{style:"width:100%;aspect-ratio:5/7;border-radius:6px;background:var(--surface);border:1px solid var(--border);display:flex;align-items:center;justify-content:center;font-family:'Cinzel',serif;font-size:8px;color:var(--text-dim);text-align:center;padding:4px;"},c.name);tile.appendChild(fb);}
+        grid.appendChild(tile);
+      });
+      sec.appendChild(grid);body.appendChild(sec);
+    });
+  }catch(e){
+    body.innerHTML='<div style="text-align:center;padding:30px;color:var(--danger-light);font-family:Cinzel,serif;font-size:12px;">Error cargando cartas del precon.</div>';
+  }
 }
 
 let preconTimer;
+
+// Popular commanders used by community (from EDHREC top commanders)
+const POPULAR_COMMANDERS=[
+  {name:"Atraxa, Praetors' Voice",set:"c16",cn:"39",colors:["W","U","B","G"]},
+  {name:"Meren of Clan Nel Toth",set:"c15",cn:"39",colors:["B","G"]},
+  {name:"The Ur-Dragon",set:"c17",cn:"48",colors:["W","U","B","R","G"]},
+  {name:"Edgar Markov",set:"c17",cn:"46",colors:["W","B","R"]},
+  {name:"Krenko, Mob Boss",set:"m13",cn:"137",colors:["R"]},
+  {name:"Rhys the Redeemed",set:"shm",cn:"237",colors:["W","G"]},
+  {name:"Kaalia of the Vast",set:"cmd",cn:"37",colors:["W","B","R"]},
+  {name:"Omnath, Locus of Creation",set:"znr",cn:"232",colors:["W","U","R","G"]},
+  {name:"Yuriko, the Tiger's Shadow",set:"c18",cn:"2",colors:["U","B"]},
+  {name:"Wilhelt, the Rotcleaver",set:"mic",cn:"2",colors:["U","B"]},
+  {name:"Jetmir, Nexus of Revels",set:"snc",cn:"220",colors:["R","G","W"]},
+  {name:"Muldrotha, the Gravetide",set:"dom",cn:"199",colors:["B","G","U"]},
+  {name:"Zimone, Infinite Analyst",set:"soc",cn:"10",colors:["G","U"]},
+  {name:"Fire Lord Azula",set:"tla",cn:"220",colors:["U","B","R"]},
+  {name:"Kenrith, the Returned King",set:"eld",cn:"303",colors:["W","U","B","R","G"]},
+  {name:"Golos, Tireless Pilgrim",set:"m20",cn:"226",colors:["W","U","B","R","G"]},
+  {name:"Arcades, the Strategist",set:"m19",cn:"212",colors:["W","U","G"]},
+  {name:"Sliver Overlord",set:"scg",cn:"139",colors:["W","U","B","R","G"]},
+];
 
 // Map: set chip name → Scryfall set code for commander precon sets
 const PRECON_SET_MAP={
@@ -1186,6 +1456,59 @@ const PRECON_SET_MAP={
   "Midnight Hunt":"mic","Forgotten Realms":"afc","Commander 2021":"c21",
   "Zendikar Rising":"znc","Commander 2020":"c20","Commander 2019":"c19",
 };
+
+// Official precon sets grouped by year - used in precon picker
+const OFFICIAL_PRECON_SETS=[
+  {year:"2026",sets:[
+    {code:"soc",name:"Secrets of Strixhaven",label:"SOC"},
+    {code:"tla",name:"Avatar: The Last Airbender",label:"TLA"},
+  ]},
+  {year:"2025",sets:[
+    {code:"fin",name:"Final Fantasy",label:"FIN"},
+    {code:"tdm",name:"Tarkir: Dragonstorm",label:"TDM"},
+    {code:"aed",name:"Aetherdrift",label:"AED"},
+  ]},
+  {year:"2024",sets:[
+    {code:"dsc",name:"Duskmourn: House of Horror",label:"DSK"},
+    {code:"blc",name:"Bloomburrow",label:"BLC"},
+    {code:"otc",name:"Outlaws of Thunder Junction",label:"OTC"},
+    {code:"pip",name:"Fallout",label:"PIP"},
+  ]},
+  {year:"2023",sets:[
+    {code:"lcc",name:"Lost Caverns of Ixalan",label:"LCC"},
+    {code:"woc",name:"Wilds of Eldraine",label:"WOC"},
+    {code:"cmm",name:"Commander Masters",label:"CMM"},
+    {code:"moc",name:"March of the Machine",label:"MOC"},
+    {code:"onc",name:"Phyrexia: All Will Be One",label:"ONC"},
+  ]},
+  {year:"2022",sets:[
+    {code:"brc",name:"The Brothers' War",label:"BRC"},
+    {code:"dmc",name:"Dominaria United",label:"DMC"},
+    {code:"ncc",name:"Streets of New Capenna",label:"NCC"},
+    {code:"clb",name:"Commander Legends: Baldur's Gate",label:"CLB"},
+    {code:"nec",name:"Kamigawa: Neon Dynasty",label:"NEC"},
+    {code:"voc",name:"Innistrad: Crimson Vow",label:"VOC"},
+    {code:"mic",name:"Innistrad: Midnight Hunt",label:"MIC"},
+  ]},
+  {year:"2021",sets:[
+    {code:"afc",name:"D&D: Adventures in the Forgotten Realms",label:"AFC"},
+    {code:"c21",name:"Commander 2021 (Strixhaven)",label:"C21"},
+  ]},
+  {year:"2020",sets:[
+    {code:"znc",name:"Zendikar Rising",label:"ZNC"},
+    {code:"c20",name:"Commander 2020",label:"C20"},
+  ]},
+  {year:"Clásicos",sets:[
+    {code:"c19",name:"Commander 2019",label:"C19"},
+    {code:"c18",name:"Commander 2018",label:"C18"},
+    {code:"c17",name:"Commander 2017",label:"C17"},
+    {code:"c16",name:"Commander 2016",label:"C16"},
+    {code:"c15",name:"Commander 2015",label:"C15"},
+    {code:"c14",name:"Commander 2014",label:"C14"},
+    {code:"c13",name:"Commander 2013",label:"C13"},
+    {code:"cmd",name:"Commander 2011",label:"CMD"},
+  ]},
+];
 
 async function searchPreconsBySet(setCode){
   const rd=document.getElementById("precon-search-results");
@@ -1435,55 +1758,171 @@ function renderCmdResults(containerId){
 // ═══════════════════════════════════════════════════════════════════════════
 // FRIENDS
 // ═══════════════════════════════════════════════════════════════════════════
+// Friends tab state
+let friendsTab='myfriends'; // 'myfriends' | 'discover'
+let allUsersCache=null;
+
+async function loadFriendsView(){
+  if(!allUsersCache) allUsersCache=await loadAllUsers();
+  renderFriends();
+}
+
 function renderFriends(){
   const el=getViewEl("friends");el.innerHTML="";
-  el.appendChild(buildTopBarEl("Amigos","Ver decks de otros jugadores"));
-  const body=h("div",{style:"padding:16px"});
+  el.appendChild(buildTopBarEl("Amigos","Jugadores de MTG Tracker"));
   if(!S.currentUser){
-    body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em"},"Inicia sesión para ver los decks de tus amigos"));
+    const body=h("div",{style:"padding:40px 16px;text-align:center"});
+    body.appendChild(h("div",{style:"font-size:36px;margin-bottom:12px"},"👥"));
+    body.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--text-dim);letter-spacing:.1em"},"Inicia sesión para ver amigos"));
     el.appendChild(body);return;
   }
-  body.appendChild(h("div",{class:"ornament"},"✦ BUSCAR AMIGO ✦"));
-  const sr=h("div",{style:"display:flex;gap:8px;margin-bottom:20px"});
-  const si=h("input",{type:"text",placeholder:"Nombre de usuario de tu amigo...",value:S.friendQuery||""});
-  si.addEventListener("input",e=>S.friendQuery=e.target.value);
-  si.addEventListener("keydown",e=>{if(e.key==="Enter")searchFriend(S.friendQuery.trim().toLowerCase());});
-  const sb=h("button",{class:"btn btn-gold",style:"padding:10px 14px;white-space:nowrap;flex-shrink:0",onclick:()=>searchFriend(S.friendQuery.trim().toLowerCase())},"Buscar");
-  sr.append(si,sb);body.appendChild(sr);
-  if(S.friendsList&&S.friendsList.length){
-    body.appendChild(h("div",{class:"ornament"},"✦ MIS AMIGOS ✦"));
-    S.friendsList.forEach(f=>{
-      const fc=h("div",{class:"friend-card",onclick:()=>viewFriendDecks(f)});
-      const av=h("div",{class:"avatar-circle",style:"background:linear-gradient(135deg,#1a4a8a,#3a8a52)"});av.textContent=f[0].toUpperCase();
-      const info=h("div",{style:"flex:1;min-width:0"});
-      info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:2px"},f));
-      info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim)"},"Toca para ver sus decks"));
-      const rm=h("button",{style:"background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:20px;",onclick:(e)=>{e.stopPropagation();S.friendsList=S.friendsList.filter(x=>x!==f);saveFriends();renderFriends();}
-      },"×");
-      fc.append(av,info,rm);body.appendChild(fc);
-    });
+
+  // Tab bar
+  const tabBar=h("div",{style:"display:flex;border-bottom:1px solid var(--border2);"});
+  [["myfriends","Mis Amigos"],["discover","Descubrir"]].forEach(([val,label])=>{
+    const active=friendsTab===val;
+    const t=h("button",{style:`flex:1;padding:12px;border:none;cursor:pointer;font-family:'Cinzel',serif;font-size:11px;letter-spacing:.08em;background:transparent;color:${active?"var(--gold-light)":"var(--text-dim)"};border-bottom:2px solid ${active?"var(--gold)":"transparent"};`,
+      onclick:()=>{friendsTab=val;renderFriends();}},label);
+    tabBar.appendChild(t);
+  });
+  el.appendChild(tabBar);
+
+  const body=h("div",{style:"padding:16px"});
+
+  if(friendsTab==="myfriends"){
+    // Search bar
+    const sr=h("div",{style:"display:flex;gap:8px;margin-bottom:16px"});
+    const si=h("input",{type:"search",placeholder:"Buscar por nombre de usuario...",value:S.friendQuery||""});
+    si.addEventListener("input",e=>{S.friendQuery=e.target.value;renderFriends();});
+    sr.appendChild(si);body.appendChild(sr);
+
+    const myFriends=(S.friendsList||[]).filter(f=>
+      !S.friendQuery||f.toLowerCase().includes(S.friendQuery.toLowerCase())
+    );
+
+    if(myFriends.length){
+      body.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.15em;margin-bottom:10px"},`${myFriends.length} AMIGO${myFriends.length===1?"":"S"}`));
+      myFriends.forEach(f=>body.appendChild(buildFriendCard(f,true)));
+    } else {
+      const empty=h("div",{style:"text-align:center;padding:30px 0"});
+      empty.appendChild(h("div",{style:"font-size:32px;margin-bottom:10px"},"🔍"));
+      empty.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--text-dim);margin-bottom:4px"},S.friendQuery?"Sin resultados":"Aún no tienes amigos"));
+      empty.appendChild(h("div",{style:"font-size:11px;color:var(--text-faint)"},'Ve a "Descubrir" para encontrar jugadores'));
+      body.appendChild(empty);
+    }
+
   } else {
-    body.appendChild(h("div",{style:"text-align:center;padding:20px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Busca el usuario de un amigo para ver sus decks"));
+    // Discover - show all app users
+    if(!allUsersCache){
+      body.appendChild(h("div",{style:"text-align:center;padding:30px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px"},"✦ Cargando jugadores..."));
+      loadFriendsView(); // async load
+    } else {
+      const otherUsers=allUsersCache.filter(u=>
+        u.username!==S.currentUser.username
+      );
+
+      if(otherUsers.length){
+        body.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.15em;margin-bottom:12px"},`${otherUsers.length} JUGADOR${otherUsers.length===1?"":"ES"} EN MTG TRACKER`));
+        otherUsers.forEach(u=>{
+          const isFriend=(S.friendsList||[]).includes(u.username);
+          body.appendChild(buildDiscoverCard(u,isFriend));
+        });
+      } else {
+        const empty=h("div",{style:"text-align:center;padding:40px 0"});
+        empty.appendChild(h("div",{style:"font-size:32px;margin-bottom:10px"},"🌐"));
+        empty.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--text-dim)"},"Aún no hay otros jugadores registrados"));
+        empty.appendChild(h("div",{style:"font-size:11px;color:var(--text-faint);margin-top:4px"},"Comparte la app con tus amigos!"));
+        body.appendChild(empty);
+      }
+    }
   }
   el.appendChild(body);
 }
 
+function buildFriendCard(username,showRemove){
+  const fc=h("div",{class:"friend-card",onclick:()=>viewFriendDecks(username)});
+  const av=h("div",{class:"avatar-circle",style:"background:linear-gradient(135deg,#1a4a8a,#3a8a52)"});
+  av.textContent=username[0].toUpperCase();
+  const info=h("div",{style:"flex:1;min-width:0"});
+  info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:2px"},username));
+  info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim)"},"Toca para ver sus decks →"));
+  fc.append(av,info);
+  if(showRemove){
+    const rm=h("button",{style:"background:var(--danger-bg);border:1px solid var(--danger-light);border-radius:8px;color:#ffaaaa;cursor:pointer;font-size:11px;padding:5px 10px;font-family:'Cinzel',serif;",
+      onclick:(e)=>{e.stopPropagation();S.friendsList=S.friendsList.filter(x=>x!==username);saveFriends();renderFriends();}
+    },"✕");
+    fc.appendChild(rm);
+  }
+  return fc;
+}
+
+function buildDiscoverCard(user,isFriend){
+  const card=h("div",{style:"background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;"});
+  // Avatar
+  const av=h("div",{style:"width:44px;height:44px;border-radius:50%;background:linear-gradient(135deg,"+avatarColor(user.username)+");display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:18px;color:var(--gold-light);flex-shrink:0;border:2px solid var(--border2);"});
+  av.textContent=user.username[0].toUpperCase();
+  const info=h("div",{style:"flex:1;min-width:0"});
+  info.appendChild(h("div",{style:"display:flex;align-items:center;gap:5px;margin-bottom:2px"},
+    h("span",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--text)"},user.displayName||user.username),
+    user.username==="eduardo"?h("span",{style:"font-size:11px;"},"⭐"):null
+  ));
+  info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);font-family:'Cinzel',serif;letter-spacing:.06em"},"@"+user.username+(user.username==="eduardo"?" · Master":"")));
+  card.append(av,info);
+  // Action button
+  if(isFriend){
+    const viewBtn=h("button",{style:"background:var(--gold-dim);border:1px solid var(--gold);border-radius:8px;color:var(--gold-light);cursor:pointer;font-size:10px;padding:7px 10px;font-family:'Cinzel',serif;white-space:nowrap;",
+      onclick:()=>viewFriendDecks(user.username)},"Ver decks");
+    const rmBtn=h("button",{style:"background:transparent;border:1px solid var(--border);border-radius:8px;color:var(--text-faint);cursor:pointer;font-size:10px;padding:7px 8px;margin-left:4px;",
+      onclick:()=>{S.friendsList=S.friendsList.filter(x=>x!==user.username);saveFriends();renderFriends();}
+    },"✕");
+    const btnWrap=h("div",{style:"display:flex;gap:4px;flex-shrink:0;"});
+    btnWrap.append(viewBtn,rmBtn);card.appendChild(btnWrap);
+  } else {
+    const addBtn=h("button",{style:"background:var(--success-bg);border:1px solid var(--success-light);border-radius:8px;color:#aaffcc;cursor:pointer;font-size:10px;padding:7px 10px;font-family:'Cinzel',serif;white-space:nowrap;flex-shrink:0;",
+      onclick:()=>{addFriend(user.username);}
+    },"+ Agregar");
+    card.appendChild(addBtn);
+  }
+  return card;
+}
+
+function avatarColor(username){
+  // Generate consistent color from username
+  let h=0;for(let i=0;i<username.length;i++)h=(h*31+username.charCodeAt(i))&0xffffff;
+  const colors=[
+    "#1a4a8a,#3a8a52","#8a1a1a,#c0392b","#1a5a2a,#4a9e6a",
+    "#4a1a8a,#8a2d8a","#8a4a1a,#c0762b","#1a4a6a,#2a7a9a"
+  ];
+  return colors[Math.abs(h)%colors.length];
+}
+
+function addFriend(username){
+  if(!S.friendsList) S.friendsList=[];
+  if(!S.friendsList.includes(username)){
+    S.friendsList.push(username);
+    saveFriends();
+    toast("✓ "+username+" agregado a amigos");
+    renderFriends();
+  }
+}
+
 async function searchFriend(username){
-  if(!username){toast("Escribe un nombre de usuario");return;}
-  if(username===S.currentUser?.username){toast("Ese eres tú mismo");return;}
-  toast("Buscando "+username+"...");
-  const decks=await cloudLoadDecks(username);
-  if(!decks){toast("Usuario '"+username+"' no encontrado o sin decks públicos");return;}
-  if(!S.friendsList.includes(username)){S.friendsList.push(username);saveFriends();}
-  toast("✓ "+username+" agregado a amigos");renderFriends();
+  // No longer needed as primary flow - kept for direct add
+  if(!username) return;
+  addFriend(username);
 }
 
 async function viewFriendDecks(username){
-  toast("Cargando decks de "+username+"...");
+  toast("⏳ Cargando decks de "+username+"...");
   const decks=await cloudLoadDecks(username);
-  if(!decks||!decks.length){toast("No se encontraron decks de "+username);return;}
+  if(!decks||!decks.length){
+    toast("@"+username+" aún no tiene decks públicos");return;
+  }
+  // Push to nav history
+  navHistory.push({view:S.view,sheet:null,activeDeck:S.activeDeck});
+  try{history.pushState({v:"home"},"");}catch(e){}
   S.readOnlyUser=username;S.readOnlyDecks=decks;S.activeDeck=0;S.view="home";
-  toast("👁 Viendo decks de "+username);render();
+  toast("👁 Viendo decks de @"+username);render();
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
@@ -1491,18 +1930,37 @@ async function viewFriendDecks(username){
 // ═══════════════════════════════════════════════════════════════════════════
 function renderProfile(){
   const el=getViewEl("profile");el.innerHTML="";
-  el.appendChild(buildTopBarEl("Perfil","Mi cuenta"));
+  const master=isMaster();
+  el.appendChild(buildTopBarEl("Perfil",master?"⭐ Usuario Master":"Mi cuenta"));
   const body=h("div",{style:"padding:16px"});
-  if(!S.currentUser){body.appendChild(h("div",{style:"text-align:center;padding:40px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:13px"},"No has iniciado sesión"));el.appendChild(body);return;}
+  if(!S.currentUser){
+    body.appendChild(h("div",{style:"text-align:center;padding:40px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:13px"},"No has iniciado sesión"));
+    el.appendChild(body);return;
+  }
+
   body.appendChild(h("div",{class:"ornament"},"✦ MI PERFIL ✦"));
+
+  // Profile card
   const card=h("div",{class:"mtg-frame",style:"margin-bottom:16px"});
   const inner=h("div",{style:"padding:20px"});
-  const av=h("div",{style:"width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--gold-dark));display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:28px;color:var(--gold-light);margin:0 auto 12px;border:2px solid var(--gold)"});
-  av.textContent=S.currentUser.displayName[0].toUpperCase();inner.appendChild(av);
-  inner.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:18px;color:var(--gold-light);text-align:center;margin-bottom:4px"},S.currentUser.displayName));
+
+  // Avatar with master badge
+  const avWrap=h("div",{style:"position:relative;width:70px;margin:0 auto 12px;"});
+  const av=h("div",{style:"width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,"+(master?"#8a6820,#e8c96a":"var(--red),var(--gold-dark)")+");display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:28px;color:"+(master?"#0a0508":"var(--gold-light)")+";border:2px solid var(--gold)"});
+  av.textContent=S.currentUser.displayName[0].toUpperCase();
+  avWrap.appendChild(av);
+  if(master){
+    const badge=h("div",{style:"position:absolute;bottom:-2px;right:-2px;background:#e8c96a;border-radius:50%;width:22px;height:22px;display:flex;align-items:center;justify-content:center;font-size:12px;border:2px solid var(--surface2);"},"⭐");
+    avWrap.appendChild(badge);
+  }
+  inner.appendChild(avWrap);
+  inner.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:18px;color:var(--gold-light);text-align:center;margin-bottom:2px"},S.currentUser.displayName));
+  if(master) inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:#e8c96a;text-align:center;letter-spacing:.2em;margin-bottom:2px"},"USUARIO MASTER"));
   inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);text-align:center;letter-spacing:.1em;margin-bottom:14px"},"@"+S.currentUser.username));
-  const stats=h("div",{style:"display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-bottom:16px;background:var(--surface2);border-radius:8px;overflow:hidden"});
+
+  // Stats
   const totalWins=S.decks.reduce((a,d)=>a+(d.wins||0),0);
+  const stats=h("div",{style:"display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-bottom:14px;background:var(--surface2);border-radius:8px;overflow:hidden"});
   [["Decks",S.decks.length,"var(--gold)"],["Victorias",totalWins,"var(--success-light)"],["Cartas",S.decks.reduce((a,d)=>a+d.cards.reduce((b,c)=>b+(c.qty||1),0),0),"var(--text)"]].forEach(([l,v,c],i)=>{
     const cell=h("div",{style:"text-align:center;padding:12px 4px;"+(i<2?"border-right:1px solid var(--border);":"")});
     cell.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:20px;color:"+c},String(v)));
@@ -1510,9 +1968,90 @@ function renderProfile(){
     stats.appendChild(cell);
   });
   inner.appendChild(stats);
-  inner.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:11px;margin-bottom:10px",onclick:async()=>{await cloudSaveDecks(S.currentUser.username,S.decks);toast("☁ Decks sincronizados!");}},"☁ Sincronizar decks"));
-  inner.appendChild(h("button",{class:"btn",style:"width:100%;padding:11px",onclick:()=>{S.currentUser=null;saveSession(null);S.decks=[];S.activeDeck=0;document.getElementById("app").style.display="none";document.getElementById("welcome-screen").style.display="flex";document.getElementById("card-flipper").classList.remove("flipped");document.getElementById("tap-hint").style.opacity="1";cardFlipped=false;toast("Sesión cerrada");}},"Cerrar sesión"));
-  card.appendChild(inner);body.appendChild(card);el.appendChild(body);
+
+  // Actions
+  inner.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:11px;margin-bottom:8px",
+    onclick:async()=>{await cloudSaveDecks(S.currentUser.username,S.decks);toast("☁ Decks sincronizados!");}},"☁ Sincronizar decks"));
+
+  // Delete own account (not available for master)
+  if(!master){
+    const delBtn=h("button",{class:"btn",style:"width:100%;padding:11px;margin-bottom:8px;border-color:var(--danger-light);color:var(--danger-light);"},"🗑 Eliminar mi cuenta");
+    delBtn.onclick=()=>{
+      delBtn.textContent="¿Seguro? Toca de nuevo para confirmar";
+      delBtn.style.background="var(--danger-bg)";
+      delBtn.onclick=()=>deleteOwnAccount();
+    };
+    inner.appendChild(delBtn);
+  }
+
+  inner.appendChild(h("button",{class:"btn",style:"width:100%;padding:11px",
+    onclick:()=>{
+      S.currentUser=null;saveSession(null);S.decks=[];S.activeDeck=0;
+      document.getElementById("app").style.display="none";
+      document.getElementById("welcome-screen").style.display="flex";
+      document.getElementById("card-flipper").classList.remove("flipped");
+      document.getElementById("tap-hint").style.opacity="1";
+      cardFlipped=false;toast("Sesión cerrada");
+    }},"Cerrar sesión"));
+
+  card.appendChild(inner);body.appendChild(card);
+
+  // ── MASTER PANEL ────────────────────────────────────────────────────────
+  if(master){
+    body.appendChild(h("div",{class:"ornament"},"⭐ PANEL MASTER ✦"));
+    const panel=h("div",{id:"master-panel"});
+    panel.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:11px;letter-spacing:.1em"},"Cargando usuarios..."));
+    body.appendChild(panel);
+    // Load users async
+    loadAllUsers().then(users=>{
+      panel.innerHTML="";
+      const header=h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.15em;margin-bottom:12px"},`${users.length} USUARIO${users.length===1?"":"S"} REGISTRADOS`);
+      panel.appendChild(header);
+      if(!users.length){
+        panel.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-faint);font-size:12px"},"Sin usuarios registrados"));
+        return;
+      }
+      users.forEach(u=>{
+        const isSelf=u.username==="eduardo";
+        const row=h("div",{style:"background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:12px 14px;margin-bottom:8px;display:flex;align-items:center;gap:10px;"});
+        // Avatar
+        const av=h("div",{style:"width:36px;height:36px;border-radius:50%;background:linear-gradient(135deg,"+(isSelf?"#8a6820,#e8c96a":avatarColor(u.username))+");display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:14px;color:"+(isSelf?"#0a0508":"var(--gold-light)")+";flex-shrink:0;"});
+        av.textContent=u.username[0].toUpperCase();
+        const info=h("div",{style:"flex:1;min-width:0"});
+        info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--text)"},u.displayName||u.username));
+        info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim)"},"@"+u.username+(isSelf?" · Master":"")));
+        row.append(av,info);
+        // Actions
+        if(!isSelf){
+          const btnWrap=h("div",{style:"display:flex;gap:6px;"});
+          // View decks
+          btnWrap.appendChild(h("button",{style:"background:var(--gold-dim);border:1px solid var(--gold);border-radius:6px;color:var(--gold-light);cursor:pointer;font-size:10px;padding:5px 8px;font-family:'Cinzel',serif;",
+            onclick:()=>viewFriendDecks(u.username)},"👁"));
+          // Delete user
+          const delBtn=h("button",{style:"background:var(--danger-bg);border:1px solid var(--danger-light);border-radius:6px;color:#ff8888;cursor:pointer;font-size:10px;padding:5px 8px;",
+            onclick:()=>{
+              delBtn.textContent="✓?";
+              delBtn.style.background="rgba(180,20,20,.7)";
+              delBtn.onclick=async()=>{
+                await deleteUserAccount(u.username);
+                // Reload
+                loadAllUsers().then(newUsers=>{
+                  allUsersCache=newUsers;
+                  renderProfile();
+                });
+              };
+            }},"🗑");
+          btnWrap.append(delBtn);
+          row.appendChild(btnWrap);
+        } else {
+          row.appendChild(h("span",{style:"font-size:16px"},"⭐"));
+        }
+        panel.appendChild(row);
+      });
+    });
+  }
+
+  el.appendChild(body);
 }
 
 // ═══════════════════════════════════════════════════════════════════════════
