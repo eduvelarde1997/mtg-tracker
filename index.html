@@ -14,396 +14,274 @@
 <link href="https://fonts.googleapis.com/css2?family=Cinzel+Decorative:wght@400;700;900&family=Cinzel:wght@400;600;700&family=Crimson+Pro:ital,wght@0,300;0,400;0,600;1,400&display=swap" rel="stylesheet">
 <script>
 (function(){
-  const ico = document.querySelector('link[rel="icon"]').href;
+  const ico=document.querySelector('link[rel="icon"]').href;
   const m={name:"MTG Tracker",short_name:"MTG Tracker",display:"standalone",
     background_color:"#0a0508",theme_color:"#0a0508",orientation:"portrait",
     icons:[{src:ico,sizes:"512x512",type:"image/png",purpose:"any maskable"}]};
   const b=new Blob([JSON.stringify(m)],{type:"application/json"});
-  const l=document.createElement("link");
-  l.rel="manifest";l.href=URL.createObjectURL(b);
+  const l=document.createElement("link");l.rel="manifest";l.href=URL.createObjectURL(b);
   document.head.appendChild(l);
 })();
 </script>
 <style>
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
-body{
-  font-family:"Crimson Pro",Georgia,serif;
-  background:#0a0508;
-  color:#e8dcc8;
-  overscroll-behavior:none;
-}
+body{font-family:"Crimson Pro",Georgia,serif;background:#0a0508;color:#e8dcc8;overscroll-behavior:none}
 :root{
-  --gold:#c9a84c;
-  --gold-light:#e8c96a;
-  --gold-dark:#8a6820;
-  --gold-dim:rgba(201,168,76,0.12);
-  --gold-glow:rgba(201,168,76,0.25);
-  --red:#8b1a1a;
-  --red-light:#c0392b;
-  --surface:#110a0d;
-  --surface2:#1a1018;
-  --surface3:#221520;
-  --border:rgba(201,168,76,0.15);
-  --border2:rgba(201,168,76,0.3);
-  --text:#e8dcc8;
-  --text-dim:#9a8870;
-  --text-faint:#554433;
-  --success:#3a7a52;
-  --success-light:#4a9e6a;
-  --success-bg:rgba(58,122,82,0.2);
-  --danger:#8b2020;
-  --danger-light:#c04040;
-  --danger-bg:rgba(139,32,32,0.2);
+  --gold:#c9a84c;--gold-light:#e8c96a;--gold-dark:#8a6820;--gold-dim:rgba(201,168,76,0.12);
+  --red:#8b1a1a;--red-light:#c0392b;
+  --surface:#110a0d;--surface2:#1a1018;--surface3:#221520;
+  --border:rgba(201,168,76,0.15);--border2:rgba(201,168,76,0.3);
+  --text:#e8dcc8;--text-dim:#9a8870;--text-faint:#554433;
+  --success:#3a7a52;--success-light:#4a9e6a;--success-bg:rgba(58,122,82,0.2);
+  --danger:#8b2020;--danger-light:#c04040;--danger-bg:rgba(139,32,32,0.2);
+  --safe-top:env(safe-area-inset-top,0px);
   --safe-bottom:env(safe-area-inset-bottom,0px);
-  --card-border:rgba(201,168,76,0.2);
 }
 
-/* Scrollable area */
-#main-scroll{
-  position:absolute;
-  top:0;left:0;right:0;
-  bottom:calc(68px + var(--safe-bottom));
-  overflow-y:auto;
-  -webkit-overflow-scrolling:touch;
-  overscroll-behavior-y:contain;
-}
-
-/* Bottom nav */
+/* ── LAYOUT ── */
+#app{position:fixed;inset:0;display:flex;flex-direction:column}
+#main-scroll{flex:1;overflow-y:auto;-webkit-overflow-scrolling:touch;overscroll-behavior-y:contain}
 #bottom-nav{
-  position:fixed;bottom:0;left:0;right:0;
-  height:calc(68px + var(--safe-bottom));
-  padding-bottom:var(--safe-bottom);
-  background:linear-gradient(180deg,#0e0810 0%,#08050a 100%);
+  height:calc(64px + var(--safe-bottom));padding-bottom:var(--safe-bottom);
+  background:linear-gradient(180deg,#0e0810,#08050a);
   border-top:1px solid var(--border2);
-  display:flex;align-items:center;justify-content:space-around;
-  z-index:100;
+  display:flex;align-items:center;justify-content:space-around;flex-shrink:0;
 }
 
-/* Top bar */
-.topbar{
-  position:sticky;top:0;z-index:50;
-  background:linear-gradient(180deg,#0e0810 0%,rgba(14,8,16,0.97) 100%);
-  border-bottom:1px solid var(--border2);
-  padding:14px 16px 12px;
-  display:flex;align-items:center;gap:10px;
-  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
+/* ── WELCOME SCREEN ── */
+#welcome-screen{
+  position:fixed;inset:0;z-index:1000;
+  background:radial-gradient(ellipse at 50% 30%,#1a0810 0%,#0a0508 60%,#050208 100%);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  padding:20px;
 }
+.welcome-title{
+  font-family:"Cinzel Decorative",serif;font-size:22px;color:var(--gold-light);
+  letter-spacing:.1em;text-align:center;margin-bottom:6px;
+  text-shadow:0 0 30px rgba(201,168,76,0.5);
+}
+.welcome-sub{font-family:"Cinzel",serif;font-size:11px;color:var(--text-dim);letter-spacing:.2em;text-align:center;margin-bottom:40px}
 
-/* MTG-style ornamental divider */
-.ornament{
-  display:flex;align-items:center;gap:10px;
-  color:var(--gold-dark);font-size:12px;margin:4px 0 14px;
+/* ── CARD FLIP ── */
+.card-scene{width:220px;height:308px;perspective:800px;cursor:pointer;margin-bottom:12px}
+.card-flipper{
+  width:100%;height:100%;position:relative;
+  transform-style:preserve-3d;transition:transform .8s cubic-bezier(.4,0,.2,1);
 }
-.ornament::before,.ornament::after{content:"";flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--gold-dark))}
-.ornament::after{background:linear-gradient(90deg,var(--gold-dark),transparent)}
-
-/* Card frame MTG style */
-.mtg-frame{
-  background:linear-gradient(135deg,#1a1018 0%,#221520 50%,#1a1018 100%);
-  border:1px solid var(--border2);
-  border-radius:12px;
-  position:relative;
-  overflow:hidden;
+.card-flipper.flipped{transform:rotateY(180deg)}
+.card-face,.card-back{
+  position:absolute;inset:0;border-radius:14px;
+  backface-visibility:hidden;-webkit-backface-visibility:hidden;
 }
-.mtg-frame::before{
-  content:"";
-  position:absolute;inset:0;
-  background:
-    linear-gradient(135deg,rgba(201,168,76,0.05) 0%,transparent 50%),
-    repeating-linear-gradient(45deg,transparent,transparent 20px,rgba(201,168,76,0.02) 20px,rgba(201,168,76,0.02) 21px);
-  pointer-events:none;border-radius:12px;
-}
-.mtg-frame-inner{position:relative;z-index:1;padding:16px;}
-
-/* Deck card on home */
-.deck-card{
-  margin-bottom:20px;
-  cursor:pointer;
-  transition:transform .2s;
-}
-.deck-card:active{transform:scale(.98)}
-.deck-card-frame{
-  border:1px solid var(--border2);
-  border-radius:14px;
-  overflow:hidden;
-  background:linear-gradient(160deg,#1e1220 0%,#150d18 60%,#1a1020 100%);
-  box-shadow:0 4px 24px rgba(0,0,0,0.6),inset 0 1px 0 rgba(201,168,76,0.1);
-  position:relative;
-}
-.deck-card-frame::after{
-  content:"";
-  position:absolute;inset:0;
-  background:linear-gradient(135deg,rgba(201,168,76,0.04) 0%,transparent 60%);
-  pointer-events:none;
-}
-
-/* Commander image header */
-.commander-img-wrap{
-  position:relative;
-  height:160px;
-  overflow:hidden;
-  background:#0a0508;
-}
-.commander-img{
-  width:100%;height:100%;object-fit:cover;object-position:top center;
-  display:block;
-  transition:transform .3s;
-}
-.deck-card:active .commander-img{transform:scale(1.02)}
-.commander-gradient{
-  position:absolute;inset:0;
-  background:linear-gradient(0deg,#150d18 0%,rgba(21,13,24,0.4) 50%,transparent 100%);
-}
-.commander-name-overlay{
-  position:absolute;bottom:10px;left:14px;right:14px;
-}
-
-/* MTG title font */
-.mtg-title{
-  font-family:"Cinzel Decorative",serif;
-  color:var(--gold-light);
-  text-shadow:0 0 20px rgba(201,168,76,0.5),0 2px 4px rgba(0,0,0,0.8);
-}
-
-/* Mana pip */
-.mana-pip{
-  display:inline-flex;align-items:center;justify-content:center;
-  width:18px;height:18px;border-radius:50%;
-  font-size:10px;font-weight:700;border:1px solid rgba(0,0,0,0.4);
-  box-shadow:0 1px 3px rgba(0,0,0,0.5);
-}
-.pip-U{background:#1a4a8a;color:#8ab8ff}
-.pip-B{background:#2a1a3a;color:#c8a8ff}
-.pip-R{background:#8a1a1a;color:#ffaa88}
-.pip-G{background:#1a5a2a;color:#88dd88}
-.pip-W{background:#8a7a4a;color:#fff8d8}
-.pip-C{background:#4a4a4a;color:#cccccc}
-
-/* Progress bar */
-.prog-track{height:4px;background:rgba(255,255,255,0.06);border-radius:2px;overflow:hidden}
-.prog-fill{height:100%;border-radius:2px;transition:width .6s ease;
-  background:linear-gradient(90deg,var(--success),var(--success-light))}
-
-/* Stat strip */
-.stat-strip{display:grid;grid-template-columns:1fr 1fr 1fr}
-.stat-cell{padding:12px 0;text-align:center;border-right:1px solid var(--border)}
-.stat-cell:last-child{border-right:none}
-.stat-num{font-family:"Cinzel Decorative",serif;font-size:24px;line-height:1}
-
-/* Filter pills */
-.pill{
-  flex-shrink:0;
-  font-family:"Cinzel",serif;font-size:11px;letter-spacing:.06em;
-  padding:6px 14px;border-radius:20px;
-  border:1px solid var(--border);
-  background:transparent;color:var(--text-dim);
-  cursor:pointer;transition:all .15s;white-space:nowrap;
-}
-.pill.active{
-  background:var(--gold-dim);border-color:var(--gold);color:var(--gold-light);
-}
-.pill:active{transform:scale(.96)}
-
-/* Card grid */
-.card-grid{
-  display:grid;
-  grid-template-columns:repeat(3,1fr);
-  gap:10px;
-}
-
-/* MTG card tile */
-.card-tile{position:relative;cursor:pointer}
-.card-tile-img{
-  width:100%;border-radius:9px;display:block;
-  aspect-ratio:5/7;object-fit:cover;
-  transition:opacity .25s,filter .25s,transform .2s;
-  box-shadow:0 3px 10px rgba(0,0,0,0.7);
-}
-.card-tile-img.need{opacity:.5;filter:grayscale(.5) brightness(.8)}
-.card-tile-img.have{opacity:1;filter:none;box-shadow:0 3px 14px rgba(74,158,106,0.25)}
-.card-tile:active .card-tile-img{transform:scale(.97)}
-.card-fallback{
-  width:100%;aspect-ratio:5/7;border-radius:9px;
-  background:var(--surface2);border:1px solid var(--card-border);
+.card-back{
+  background:linear-gradient(135deg,#1a0e20 0%,#2a1530 50%,#1a0e20 100%);
+  border:2px solid var(--border2);
   display:flex;align-items:center;justify-content:center;
-  text-align:center;padding:8px;
-  font-family:"Cinzel",serif;font-size:9px;color:var(--text-dim);line-height:1.3;
+  box-shadow:0 8px 40px rgba(0,0,0,.8);
 }
-
-/* Status badge */
-.status-badge{
-  position:absolute;top:5px;right:5px;width:22px;height:22px;
-  border-radius:50%;display:flex;align-items:center;justify-content:center;
-  font-size:11px;font-weight:700;
+.card-back-inner{
+  width:88%;height:88%;border-radius:10px;
+  border:1px solid var(--border);
+  display:flex;flex-direction:column;align-items:center;justify-content:center;gap:12px;
+  background:radial-gradient(ellipse at 50% 40%,rgba(201,168,76,0.08),transparent 70%);
 }
-.badge-have{background:rgba(58,122,82,.9);border:1.5px solid var(--success-light);color:#aaffcc}
-.badge-need{background:rgba(139,32,32,.9);border:1.5px solid var(--danger-light);color:#ffcccc}
+.card-face{
+  background:linear-gradient(160deg,#1e1220,#150d18,#1a1020);
+  border:2px solid var(--border2);
+  transform:rotateY(180deg);
+  overflow:hidden;
+  box-shadow:0 8px 40px rgba(0,0,0,.8);
+  display:flex;flex-direction:column;
+  padding:16px;
+}
+.card-tap-hint{font-family:"Cinzel",serif;font-size:10px;color:var(--text-faint);letter-spacing:.15em;margin-top:6px}
 
-/* Inputs */
-input[type=text],input[type=search]{
-  width:100%;
-  background:var(--surface2);
-  border:1px solid var(--border2);
-  border-radius:10px;
-  padding:10px 14px;
-  color:var(--text);
-  font-family:"Crimson Pro",serif;font-size:15px;
-  outline:none;-webkit-appearance:none;
+/* ── INPUTS ── */
+input[type=text],input[type=password],input[type=search]{
+  width:100%;background:var(--surface2);border:1px solid var(--border2);
+  border-radius:10px;padding:10px 14px;color:var(--text);
+  font-family:"Crimson Pro",serif;font-size:15px;outline:none;-webkit-appearance:none;
 }
 input:focus{border-color:var(--gold)}
 select{
-  background:var(--surface2);border:1px solid var(--border2);
-  border-radius:8px;padding:8px 28px 8px 10px;color:var(--text);
+  background:var(--surface2);border:1px solid var(--border2);border-radius:8px;
+  padding:8px 28px 8px 10px;color:var(--text);
   font-family:"Cinzel",serif;font-size:11px;outline:none;
   -webkit-appearance:none;appearance:none;
   background-image:url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='8'%3E%3Cpath d='M1 1l5 5 5-5' stroke='%23c9a84c' fill='none' stroke-width='1.5'/%3E%3C/svg%3E");
   background-repeat:no-repeat;background-position:right 10px center;
 }
 
-/* Buttons */
-.btn{
-  border:1px solid var(--border2);border-radius:8px;
-  background:transparent;color:var(--text-dim);
-  font-family:"Cinzel",serif;font-size:11px;letter-spacing:.06em;
-  padding:9px 16px;cursor:pointer;transition:all .15s;
-}
+/* ── BUTTONS ── */
+.btn{border:1px solid var(--border2);border-radius:8px;background:transparent;
+  color:var(--text-dim);font-family:"Cinzel",serif;font-size:11px;
+  letter-spacing:.06em;padding:9px 16px;cursor:pointer;transition:all .15s}
 .btn:active{transform:scale(.97)}
-.btn-gold{
-  background:linear-gradient(135deg,#8a6820,#c9a84c);
-  border-color:var(--gold);color:#0a0508;font-weight:700;
-}
+.btn-gold{background:linear-gradient(135deg,#8a6820,#c9a84c);border-color:var(--gold);color:#0a0508;font-weight:700}
 .btn-success{background:var(--success-bg);border-color:var(--success-light);color:#88ffaa}
 .btn-danger{background:var(--danger-bg);border-color:var(--danger-light);color:#ffaaaa}
 
-/* Section heading */
-.sec-head{
-  display:flex;align-items:center;gap:10px;
-  padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:10px;
-}
-.sec-title{font-family:"Cinzel",serif;font-size:11px;letter-spacing:.12em;color:var(--text-dim);text-transform:uppercase}
-.sec-badge{
-  margin-left:auto;
-  font-family:"Cinzel",serif;font-size:10px;
-  background:var(--gold-dim);border:1px solid var(--border2);
-  color:var(--gold);border-radius:10px;padding:2px 8px;
-}
-
-/* Sheet overlay */
-.sheet-overlay{
-  position:fixed;inset:0;
-  background:rgba(0,0,0,0.8);
-  z-index:200;
-  display:flex;flex-direction:column;justify-content:flex-end;
-  backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px);
-}
-.sheet{
-  background:linear-gradient(180deg,#1a1020 0%,#120c18 100%);
-  border-radius:20px 20px 0 0;
-  border-top:1px solid var(--border2);
-  padding:16px 16px calc(16px + var(--safe-bottom));
-  max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch;
-}
-
-/* Search results grid */
-.search-grid{
-  display:grid;grid-template-columns:repeat(3,1fr);
-  gap:8px;max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch;
-}
-
-/* Toast */
-#toast{
-  position:fixed;bottom:82px;left:50%;
-  transform:translateX(-50%) translateY(16px);
-  background:var(--surface2);border:1px solid var(--gold);border-radius:10px;
-  padding:10px 20px;
-  font-family:"Cinzel",serif;font-size:11px;letter-spacing:.06em;color:var(--gold-light);
-  white-space:nowrap;z-index:999;opacity:0;pointer-events:none;
-  transition:opacity .25s,transform .25s;
-  box-shadow:0 4px 20px rgba(0,0,0,0.7);
-}
-#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
-
-/* Nav button */
+/* ── NAV ── */
 .nav-btn{
   display:flex;flex-direction:column;align-items:center;gap:3px;
   background:none;border:none;cursor:pointer;
-  color:var(--text-faint);
-  font-family:"Cinzel",serif;font-size:9px;letter-spacing:.08em;
-  padding:8px 16px;transition:color .2s;
+  color:var(--text-faint);font-family:"Cinzel",serif;font-size:9px;
+  letter-spacing:.08em;padding:8px 12px;transition:color .2s;
 }
 .nav-btn.active{color:var(--gold)}
 .nav-btn svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
-
-/* FAB */
 .fab{
   width:54px;height:54px;border-radius:50%;
   background:linear-gradient(135deg,var(--red),#6a1010);
-  border:2px solid var(--gold);
-  cursor:pointer;
+  border:2px solid var(--gold);cursor:pointer;
   display:flex;align-items:center;justify-content:center;
   font-size:28px;color:var(--gold-light);font-weight:300;
-  box-shadow:0 4px 20px rgba(139,26,26,0.5),0 0 0 1px rgba(201,168,76,0.2);
-  transition:transform .2s;
+  box-shadow:0 4px 20px rgba(139,26,26,.5);transition:transform .2s;
 }
 .fab:active{transform:scale(.92)}
+.fab.disabled{opacity:.3;pointer-events:none}
 
-/* New deck card */
-.new-deck-card{
-  border:1px dashed var(--border2);border-radius:14px;
-  padding:24px;text-align:center;cursor:pointer;
-  background:var(--gold-dim);transition:all .2s;margin-bottom:16px;
+/* ── TOP BAR ── */
+.topbar{
+  position:sticky;top:0;z-index:50;
+  background:rgba(9,5,8,.97);border-bottom:1px solid var(--border2);
+  padding:14px 16px 12px;display:flex;align-items:center;gap:10px;
+  backdrop-filter:blur(12px);-webkit-backdrop-filter:blur(12px);
 }
-.new-deck-card:active{transform:scale(.98)}
+
+/* ── CARDS ── */
+.mtg-frame{background:linear-gradient(135deg,#1a1018,#221520,#1a1018);border:1px solid var(--border2);border-radius:12px;overflow:hidden}
+.deck-card{margin-bottom:20px;cursor:pointer;transition:transform .2s}
+.deck-card:active{transform:scale(.98)}
+.deck-card-frame{border:1px solid var(--border2);border-radius:14px;overflow:hidden;
+  background:linear-gradient(160deg,#1e1220,#150d18,#1a1020);
+  box-shadow:0 4px 24px rgba(0,0,0,.6),inset 0 1px 0 rgba(201,168,76,.1)}
+.commander-img-wrap{position:relative;height:160px;overflow:hidden;background:#0a0508}
+.commander-img{width:100%;height:100%;object-fit:cover;object-position:top center;display:block}
+.commander-gradient{position:absolute;inset:0;background:linear-gradient(0deg,#150d18 0%,rgba(21,13,24,.4) 50%,transparent 100%)}
+.commander-name-overlay{position:absolute;bottom:10px;left:14px;right:14px}
+.mana-pip{display:inline-flex;align-items:center;justify-content:center;width:18px;height:18px;border-radius:50%;font-size:10px;font-weight:700;border:1px solid rgba(0,0,0,.4);box-shadow:0 1px 3px rgba(0,0,0,.5)}
+.pip-U{background:#1a4a8a;color:#8ab8ff}.pip-B{background:#2a1a3a;color:#c8a8ff}
+.pip-R{background:#8a1a1a;color:#ffaa88}.pip-G{background:#1a5a2a;color:#88dd88}
+.pip-W{background:#8a7a4a;color:#fff8d8}.pip-C{background:#4a4a4a;color:#cccccc}
+.prog-track{height:4px;background:rgba(255,255,255,.06);border-radius:2px;overflow:hidden}
+.prog-fill{height:100%;border-radius:2px;transition:width .6s ease;background:linear-gradient(90deg,var(--success),var(--success-light))}
+.stat-strip{display:grid;grid-template-columns:1fr 1fr 1fr}
+.stat-cell{padding:12px 0;text-align:center;border-right:1px solid var(--border)}
+.stat-cell:last-child{border-right:none}
+.stat-num{font-family:"Cinzel Decorative",serif;font-size:22px;line-height:1}
+.ornament{display:flex;align-items:center;gap:10px;color:var(--gold-dark);font-size:12px;margin:4px 0 14px}
+.ornament::before,.ornament::after{content:"";flex:1;height:1px}
+.ornament::before{background:linear-gradient(90deg,transparent,var(--gold-dark))}
+.ornament::after{background:linear-gradient(90deg,var(--gold-dark),transparent)}
+.pill{flex-shrink:0;font-family:"Cinzel",serif;font-size:11px;letter-spacing:.06em;padding:6px 14px;border-radius:20px;border:1px solid var(--border);background:transparent;color:var(--text-dim);cursor:pointer;transition:all .15s;white-space:nowrap}
+.pill.active{background:var(--gold-dim);border-color:var(--gold);color:var(--gold-light)}
+.pill:active{transform:scale(.96)}
+.card-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:10px}
+.card-tile{position:relative;cursor:pointer}
+.card-tile-img{width:100%;border-radius:9px;display:block;aspect-ratio:5/7;object-fit:cover;transition:opacity .25s,filter .25s;box-shadow:0 3px 10px rgba(0,0,0,.7)}
+.card-tile-img.need{opacity:.5;filter:grayscale(.5) brightness(.8)}
+.card-tile-img.have{opacity:1;filter:none;box-shadow:0 3px 14px rgba(74,158,106,.25)}
+.card-fallback{width:100%;aspect-ratio:5/7;border-radius:9px;background:var(--surface2);border:1px solid rgba(201,168,76,.2);display:flex;align-items:center;justify-content:center;text-align:center;padding:8px;font-family:"Cinzel",serif;font-size:9px;color:var(--text-dim);line-height:1.3}
+.status-badge{position:absolute;top:5px;right:5px;width:22px;height:22px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:11px;font-weight:700}
+.badge-have{background:rgba(58,122,82,.9);border:1.5px solid var(--success-light);color:#aaffcc}
+.badge-need{background:rgba(139,32,32,.9);border:1.5px solid var(--danger-light);color:#ffcccc}
+.sec-head{display:flex;align-items:center;gap:10px;padding:8px 0;border-bottom:1px solid var(--border);margin-bottom:10px}
+.sec-title{font-family:"Cinzel",serif;font-size:11px;letter-spacing:.12em;color:var(--text-dim);text-transform:uppercase}
+.sec-badge{margin-left:auto;font-family:"Cinzel",serif;font-size:10px;background:var(--gold-dim);border:1px solid var(--border2);color:var(--gold);border-radius:10px;padding:2px 8px}
+.sheet-overlay{position:fixed;inset:0;background:rgba(0,0,0,.8);z-index:200;display:flex;flex-direction:column;justify-content:flex-end;backdrop-filter:blur(6px);-webkit-backdrop-filter:blur(6px)}
+.sheet{background:linear-gradient(180deg,#1a1020,#120c18);border-radius:20px 20px 0 0;border-top:1px solid var(--border2);padding:16px 16px calc(16px + var(--safe-bottom));max-height:88vh;overflow-y:auto;-webkit-overflow-scrolling:touch}
+.search-grid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;max-height:240px;overflow-y:auto;-webkit-overflow-scrolling:touch}
+#toast{position:fixed;bottom:82px;left:50%;transform:translateX(-50%) translateY(16px);background:var(--surface2);border:1px solid var(--gold);border-radius:10px;padding:10px 20px;font-family:"Cinzel",serif;font-size:11px;letter-spacing:.06em;color:var(--gold-light);white-space:nowrap;z-index:999;opacity:0;pointer-events:none;transition:opacity .25s,transform .25s;box-shadow:0 4px 20px rgba(0,0,0,.7)}
+#toast.show{opacity:1;transform:translateX(-50%) translateY(0)}
+
+/* ── WIN COUNTER ── */
+.win-bar{display:flex;align-items:center;justify-content:space-between;padding:10px 14px;border-top:1px solid var(--border)}
+.win-count{font-family:"Cinzel Decorative",serif;font-size:20px;color:var(--gold-light);display:flex;align-items:center;gap:8px}
+.win-label{font-family:"Cinzel",serif;font-size:10px;color:var(--text-dim);letter-spacing:.1em}
+.win-btn{width:36px;height:36px;border-radius:50%;border:1px solid var(--gold);background:var(--gold-dim);color:var(--gold-light);font-size:20px;cursor:pointer;display:flex;align-items:center;justify-content:center;font-family:"Cinzel",serif}
+.win-btn:active{transform:scale(.9);background:var(--gold)}
+
+/* ── PRECON CARD ── */
+.precon-card{background:var(--surface);border:1px solid var(--border2);border-radius:14px;overflow:hidden;margin-bottom:14px}
+.precon-img{width:100%;height:100px;object-fit:cover;object-position:top;display:block}
+
+/* ── FRIEND CARD ── */
+.friend-card{background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer}
+.avatar-circle{width:44px;height:44px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-family:"Cinzel Decorative",serif;font-size:18px;color:var(--gold-light);flex-shrink:0;border:2px solid var(--gold)}
+
+/* ── READ ONLY BANNER ── */
+.readonly-banner{background:rgba(139,32,32,.2);border-bottom:1px solid var(--danger-light);padding:8px 16px;display:flex;align-items:center;justify-content:space-between}
+
+/* ── NEW DECK OPTIONS ── */
+.new-deck-option{background:var(--gold-dim);border:1px solid var(--border2);border-radius:14px;padding:20px;text-align:center;cursor:pointer;transition:all .2s;margin-bottom:12px}
+.new-deck-option:active{transform:scale(.98);border-color:var(--gold)}
+
+/* ── ANIMATIONS ── */
+@keyframes goldPulse{0%,100%{text-shadow:0 0 20px rgba(201,168,76,.3)}50%{text-shadow:0 0 40px rgba(201,168,76,.7)}}
+.gold-pulse{animation:goldPulse 3s ease-in-out infinite}
+@keyframes fadeIn{from{opacity:0;transform:translateY(10px)}to{opacity:1;transform:translateY(0)}}
+.fade-in{animation:fadeIn .4s ease forwards}
 </style>
 </head>
 <body>
-<div id="main-scroll">
-  <div id="view-home" style="display:none"></div>
-  <div id="view-deck" style="display:none"></div>
+
+<!-- WELCOME SCREEN -->
+<div id="welcome-screen">
+  <div class="welcome-title gold-pulse">⬡ MTG Tracker</div>
+  <div class="welcome-sub">GESTOR DE DECKS · COMMANDER</div>
+  <div class="card-scene" id="card-scene" onclick="flipCard()">
+    <div class="card-flipper" id="card-flipper">
+      <!-- BACK -->
+      <div class="card-back">
+        <div class="card-back-inner">
+          <img src="https://cards.scryfall.io/large/back/e/d/ed5c46da-8a0e-41e4-8f28-5a74773b1497.jpg"
+               onerror="this.onerror=null;this.src='https://api.scryfall.com/cards/named?exact=lightning+bolt&format=image&version=normal'"
+               style="width:82%;border-radius:10px;opacity:0.9;box-shadow:0 4px 20px rgba(0,0,0,0.5);"
+               alt="MTG Card">
+          <div style="font-family:'Cinzel',serif;font-size:11px;color:var(--gold);letter-spacing:.15em">TOCA PARA COMENZAR</div>
+        </div>
+      </div>
+      <!-- FACE (login/register choice) -->
+      <div class="card-face" id="card-face">
+        <div style="font-family:'Cinzel Decorative',serif;font-size:13px;color:var(--gold-light);text-align:center;margin-bottom:4px;letter-spacing:.06em">MTG Tracker</div>
+        
+        <!-- Mode selector -->
+        <div id="auth-mode-sel" style="display:flex;gap:6px;margin-bottom:12px">
+          <button onclick="setAuthMode('login')" id="btn-mode-login" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--gold);background:var(--gold-dim);color:var(--gold-light);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.08em;cursor:pointer">ENTRAR</button>
+          <button onclick="setAuthMode('register')" id="btn-mode-register" style="flex:1;padding:7px;border-radius:8px;border:1px solid var(--border);background:transparent;color:var(--text-dim);font-family:'Cinzel',serif;font-size:10px;letter-spacing:.08em;cursor:pointer">NUEVO</button>
+        </div>
+
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:4px">USUARIO</div>
+        <input type="text" id="login-user" placeholder="Nombre de usuario..." style="margin-bottom:8px;font-size:13px;padding:8px 12px">
+        <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:4px">CONTRASEÑA</div>
+        <input type="password" id="login-pass" placeholder="Contraseña..." style="margin-bottom:10px;font-size:13px;padding:8px 12px">
+        <div id="login-confirm-wrap" style="display:none">
+          <div style="font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:4px">CONFIRMAR CONTRASEÑA</div>
+          <input type="password" id="login-confirm" placeholder="Repite la contraseña..." style="margin-bottom:10px;font-size:13px;padding:8px 12px">
+        </div>
+        <button class="btn btn-gold" style="width:100%;padding:10px;font-size:12px" onclick="doLogin()">✦ <span id="login-btn-text">Entrar</span></button>
+        <div id="login-error" style="font-family:'Cinzel',serif;font-size:10px;color:var(--danger-light);text-align:center;margin-top:6px;min-height:14px"></div>
+      </div>
+    </div>
+  </div>
+  <div class="card-tap-hint" id="tap-hint">Toca la carta para comenzar</div>
 </div>
-<div id="bottom-nav"></div>
+
+<!-- MAIN APP -->
+<div id="app" style="display:none">
+  <div id="main-scroll"></div>
+  <div id="bottom-nav"></div>
+</div>
 <div class="sheet-overlay" id="sheet-overlay" style="display:none"></div>
 <div id="toast"></div>
+<div id="card-preview-modal" style="display:none;position:fixed;inset:0;z-index:400;background:rgba(0,0,0,.85);backdrop-filter:blur(8px);display:none;flex-direction:column;align-items:center;justify-content:center;padding:20px" onclick="this.style.display='none'"></div>
 
 <script>
-// ─── DATA ──────────────────────────────────────────────────────────────────
-const CAT_ICONS={
-  "Commander":"♛",
-  "Criaturas":"☽","Criaturas Avatar":"◈","Criaturas Soporte":"◉",
-  "Instantáneos":"⚡","Sorcerías":"◇","Encantamientos":"❋",
-  "Artefactos":"◆","Artefactos de Maná":"◇",
-  "Hechizos Avatar":"✦","Hechizos":"⚡",
-  "Tierras":"▲","Tierras Avatar":"◆","Tierras Básicas":"▽",
-  "Sin categoría":"○"
-};
-
-// Ordered display: Commander always first, lands always last
-const CAT_ORDER=[
-  "Commander",
-  "Criaturas","Criaturas Avatar","Criaturas Soporte",
-  "Instantáneos","Sorcerías","Encantamientos",
-  "Artefactos","Artefactos de Maná",
-  "Hechizos Avatar","Hechizos",
-  "Tierras Avatar","Tierras","Tierras Básicas",
-  "Sin categoría"
-];
-const ALL_CATS=CAT_ORDER;
-
-// Smart auto-detect category from Scryfall type line
-function autoDetectCat(typeLine=""){
-  const t=typeLine.toLowerCase();
-  if(t.includes("land")) return "Tierras";
-  if(t.includes("basic land")) return "Tierras Básicas";
-  if(t.includes("artifact")) return "Artefactos";
-  if(t.includes("enchantment")) return "Encantamientos";
-  if(t.includes("instant")) return "Instantáneos";
-  if(t.includes("sorcery")) return "Sorcerías";
-  if(t.includes("creature")) return "Criaturas";
-  if(t.includes("planeswalker")) return "Criaturas";
-  return "Sin categoría";
-}
-
+// ═══════════════════════════════════════════════════════════════════════════
+// CARD DATA
+// ═══════════════════════════════════════════════════════════════════════════
 const AZULA_CARDS=[
   {id:"cmd-azula",name:"Fire Lord Azula",set:"tla",cn:"220",cat:"Commander",status:"need",qty:1,avatar:true},
   {id:"tla-mai",name:"Mai, Scornful Striker",set:"tla",cn:"112",cat:"Criaturas Avatar",status:"need",qty:1,avatar:true},
@@ -588,364 +466,413 @@ const ZIMONE_CARDS=[
   {id:"z-kodama-reach-2",name:"Krosan Grip",set:"cmm",cn:"318",cat:"Instantáneos",status:"have",qty:1}
 ];
 
-const DEFAULT_DECKS=[
-  {id:"azula-001",name:"Fire Lord Azula",expansion:"Avatar: The Last Airbender",
-   colors:["U","B","R"],format:"Commander",bracket:3,
-   commanderSet:"tla",commanderCn:"220",
-   cards:AZULA_CARDS.map(c=>({...c}))},
-  {id:"zimone-001",name:"Zimone, Infinite Analyst",expansion:"Secrets of Strixhaven",
-   colors:["G","U"],format:"Commander",bracket:2,
-   commanderSet:"soc",commanderCn:"10",
-   cards:ZIMONE_CARDS.map(c=>({...c}))},
+const CAT_ICONS={"Commander":"♛","Criaturas":"☽","Criaturas Avatar":"◈","Criaturas Soporte":"◉","Instantáneos":"⚡","Sorcerías":"◇","Encantamientos":"❋","Artefactos":"◆","Artefactos de Maná":"◇","Hechizos Avatar":"✦","Hechizos":"⚡","Tierras Avatar":"◆","Tierras":"▲","Tierras Básicas":"▽","Sin categoría":"○"};
+const CAT_ORDER=["Commander","Criaturas","Criaturas Avatar","Criaturas Soporte","Instantáneos","Sorcerías","Encantamientos","Artefactos","Artefactos de Maná","Hechizos Avatar","Hechizos","Tierras Avatar","Tierras","Tierras Básicas","Sin categoría"];
+const ALL_CATS=CAT_ORDER;
+
+function autoDetectCat(t=""){
+  t=t.toLowerCase();
+  if(t.includes("basic land")) return "Tierras Básicas";
+  if(t.includes("land")) return "Tierras";
+  if(t.includes("artifact")) return "Artefactos";
+  if(t.includes("enchantment")) return "Encantamientos";
+  if(t.includes("instant")) return "Instantáneos";
+  if(t.includes("sorcery")) return "Sorcerías";
+  if(t.includes("creature")||t.includes("planeswalker")) return "Criaturas";
+  return "Sin categoría";
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// AUTH & STORAGE
+// ═══════════════════════════════════════════════════════════════════════════
+function hashPass(s){let h=5381;for(let i=0;i<s.length;i++)h=((h<<5)+h)+s.charCodeAt(i);return(h>>>0).toString(36)}
+
+const PROFILES_KEY="mtg_profiles_v2";
+const SESSION_KEY="mtg_session_v2";
+
+function loadProfiles(){try{const s=localStorage.getItem(PROFILES_KEY);return s?JSON.parse(s):{}}catch(e){return {}}}
+function saveProfiles(p){try{localStorage.setItem(PROFILES_KEY,JSON.stringify(p))}catch(e){}}
+function loadSession(){try{const s=localStorage.getItem(SESSION_KEY);return s?JSON.parse(s):null}catch(e){return null}}
+function saveSession(s){try{localStorage.setItem(SESSION_KEY,JSON.stringify(s))}catch(e){}}
+
+// Cloud: save/load a user's decks (shared=true so friends can read)
+async function cloudSaveDecks(username,decks){
+  try{await window.storage.set("decks_"+username,JSON.stringify(decks),true)}catch(e){}
+}
+async function cloudLoadDecks(username){
+  try{const r=await window.storage.get("decks_"+username,true);if(r&&r.value)return JSON.parse(r.value)}catch(e){}
+  return null;
+}
+async function cloudSaveProfile(username,data){
+  try{await window.storage.set("profile_"+username,JSON.stringify(data),true)}catch(e){}
+}
+async function cloudLoadProfile(username){
+  try{const r=await window.storage.get("profile_"+username,true);if(r&&r.value)return JSON.parse(r.value)}catch(e){}
+  return null;
+}
+
+// Eduardo's deck pre-loaded
+const EDUARDO_DECKS=[
+  {id:"azula-001",name:"Fire Lord Azula",expansion:"Avatar: The Last Airbender",colors:["U","B","R"],format:"Commander",bracket:3,commanderSet:"tla",commanderCn:"220",wins:0,cards:AZULA_CARDS.map(c=>({...c}))},
 ];
 
-const STORAGE_KEY="mtg_tracker_v5";
-function load(){try{const s=localStorage.getItem(STORAGE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}}
-function save(){
-  try{localStorage.setItem(STORAGE_KEY,JSON.stringify({decks:S.decks,activeDeck:S.activeDeck}));}catch(e){}
-  if(S.currentUser&&!S.viewingUser){
-    // Debounce cloud save
-    clearTimeout(save._t);
-    save._t=setTimeout(()=>saveUserDecks(S.currentUser.username,S.decks),1200);
+// ═══════════════════════════════════════════════════════════════════════════
+// STATE
+// ═══════════════════════════════════════════════════════════════════════════
+let S={
+  view:"home",
+  currentUser:null,     // {username, displayName}
+  decks:[],activeDeck:0,
+  readOnlyUser:null,readOnlyDecks:null,
+  filter:"all",catFilter:"all",searchDeck:"",
+  sheet:null,
+  addQuery:"",addResults:[],addLoading:false,addSelected:null,addCat:"Sin categoría",addQty:1,lastAutoCat:null,
+  newDeckMode:null,   // null | 'scratch' | 'precon'
+  newDeck:{name:"",expansion:"",colors:[],commanderName:"",commanderImg:null,commanderSet:"",commanderCn:""},
+  newDeckStep:0,
+  preconQuery:"",preconResults:[],preconLoading:false,
+  friendQuery:"",friendsList:[],
+  toast:null,
+};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// WELCOME / LOGIN
+// ═══════════════════════════════════════════════════════════════════════════
+let cardFlipped=false;
+function flipCard(){
+  if(!cardFlipped){
+    document.getElementById("card-flipper").classList.add("flipped");
+    document.getElementById("tap-hint").style.opacity="0";
+    cardFlipped=true;
+    setTimeout(()=>document.getElementById("login-user").focus(),850);
   }
 }
 
-let S={
-  view:"home",decks:null,activeDeck:0,
-  filter:"all",catFilter:"all",searchDeck:"",
-  sheet:null,
-  addQuery:"",addResults:[],addLoading:false,addSelected:null,addCat:"Sin categoría",addQty:1,
-  lastAutoCat:null,
-  newDeck:{name:"",expansion:"",colors:[],commanderName:"",commanderImg:null,commanderSet:"",commanderCn:""},
-  newDeckStep:0,
-  toast:null,
-  // Profile system
-  currentUser:null,   // {username, passwordHash}
-  viewingUser:null,   // null = own profile, string = friend's username (read-only)
-  friendSearch:"",
-  preconSearch:"",preconExpansion:"all",preconResults:[],preconLoading:false,
-};
-
-// ─── PROFILE STORAGE ─────────────────────────────────────────────────────
-const PROFILE_KEY = "mtg_profile_v1";
-const FRIENDS_KEY = "mtg_friends_v1";
-
-function hashPass(str){
-  // Simple djb2 hash — not cryptographic but fine for local toy auth
-  let h=5381;
-  for(let i=0;i<str.length;i++) h=((h<<5)+h)+str.charCodeAt(i);
-  return (h>>>0).toString(36);
+let authMode='login'; // 'login' | 'register'
+function setAuthMode(mode){
+  authMode=mode;
+  const isReg=mode==='register';
+  document.getElementById('btn-mode-login').style.cssText='flex:1;padding:7px;border-radius:8px;cursor:pointer;font-family:Cinzel,serif;font-size:10px;letter-spacing:.08em;border:1px solid '+(isReg?'var(--border)':'var(--gold)')+';background:'+(isReg?'transparent':'var(--gold-dim)')+';color:'+(isReg?'var(--text-dim)':'var(--gold-light)');
+  document.getElementById('btn-mode-register').style.cssText='flex:1;padding:7px;border-radius:8px;cursor:pointer;font-family:Cinzel,serif;font-size:10px;letter-spacing:.08em;border:1px solid '+(isReg?'var(--gold)':'var(--border)')+';background:'+(isReg?'var(--gold-dim)':'transparent')+';color:'+(isReg?'var(--gold-light)':'var(--text-dim)');
+  document.getElementById('login-confirm-wrap').style.display=isReg?'block':'none';
+  document.getElementById('login-btn-text').textContent=isReg?'Crear cuenta':'Entrar';
+  document.getElementById('login-error').textContent='';
 }
 
-function loadProfile(){
-  try{const s=localStorage.getItem(PROFILE_KEY);return s?JSON.parse(s):null;}catch(e){return null;}
-}
-function saveProfile(user){
-  try{localStorage.setItem(PROFILE_KEY,JSON.stringify(user));}catch(e){}
-}
-function loadFriends(){
-  try{const s=localStorage.getItem(FRIENDS_KEY);return s?JSON.parse(s):[];}catch(e){return [];}
-}
-function saveFriends(f){
-  try{localStorage.setItem(FRIENDS_KEY,JSON.stringify(f));}catch(e){}
+async function doLogin(){
+  const u=document.getElementById("login-user").value.trim().toLowerCase();
+  const p=document.getElementById("login-pass").value;
+  const errEl=document.getElementById("login-error");
+  errEl.textContent="";
+  if(!u||!p){errEl.textContent="Completa usuario y contraseña";return;}
+  if(u.length<2){errEl.textContent="Usuario muy corto (mínimo 2 caracteres)";return;}
+
+  const ph=hashPass(p);
+  const profiles=loadProfiles();
+
+  if(authMode==='register'){
+    // New user registration
+    const confirm=document.getElementById("login-confirm").value;
+    if(p!==confirm){errEl.textContent="Las contraseñas no coinciden";return;}
+    if(p.length<3){errEl.textContent="Contraseña muy corta (mínimo 3 caracteres)";return;}
+    if(u==="eduardo"||profiles[u]){errEl.textContent="Ese usuario ya existe — usa 'Entrar'";return;}
+    profiles[u]={username:u,passwordHash:ph,displayName:u};
+    saveProfiles(profiles);
+    await cloudSaveProfile(u,{username:u,displayName:u,createdAt:Date.now()});
+    await startSession(u,u,[]);
+    return;
+  }
+
+  // Login mode
+  if(u==="eduardo"){
+    if(ph!==hashPass("Hola")){errEl.textContent="Contraseña incorrecta";return;}
+    if(!profiles[u]){profiles[u]={username:u,passwordHash:ph,displayName:"Eduardo"};saveProfiles(profiles);}
+    let decks=await cloudLoadDecks(u);
+    if(!decks||!decks.length) decks=EDUARDO_DECKS;
+    await startSession(u,"Eduardo",decks);
+  } else if(profiles[u]){
+    if(profiles[u].passwordHash!==ph){errEl.textContent="Contraseña incorrecta";return;}
+    let decks=await cloudLoadDecks(u)||[];
+    await startSession(u,profiles[u].displayName||u,decks);
+  } else {
+    errEl.textContent="Usuario no encontrado — ¿quieres crear una cuenta nueva?";
+    // Highlight the register button
+    setTimeout(()=>setAuthMode('register'),800);
+  }
 }
 
-// Save a user's decks to cloud under their username key
-async function saveUserDecks(username, decks){
-  const key="mtg_user_"+username;
-  try{await window.storage.set(key,JSON.stringify({decks,updatedAt:Date.now()}),true);}catch(e){}
-  // Also local
-  try{localStorage.setItem(key+"_local",JSON.stringify({decks,updatedAt:Date.now()}));}catch(e){}
-}
-async function loadUserDecks(username){
-  const key="mtg_user_"+username;
-  try{
-    const r=await window.storage.get(key,true);
-    if(r&&r.value){const d=JSON.parse(r.value);return d.decks||[];}
-  }catch(e){}
-  try{const l=localStorage.getItem(key+"_local");if(l){const d=JSON.parse(l);return d.decks||[];}}catch(e){}
-  return null;
-}
-async function loadUserProfile(username){
-  const key="mtg_userprofile_"+username;
-  try{
-    const r=await window.storage.get(key,true);
-    if(r&&r.value) return JSON.parse(r.value);
-  }catch(e){}
-  return null;
-}
-async function saveUserProfile(username,data){
-  const key="mtg_userprofile_"+username;
-  try{await window.storage.set(key,JSON.stringify(data),true);}catch(e){}
+async function startSession(username,displayName,decks){
+  S.currentUser={username,displayName};
+  S.decks=decks;S.activeDeck=0;
+  saveSession({username,displayName});
+  // Load friends list
+  try{S.friendsList=JSON.parse(localStorage.getItem("friends_"+username)||"[]")}catch(e){S.friendsList=[];}
+  // Hide welcome, show app
+  document.getElementById("welcome-screen").style.display="none";
+  document.getElementById("app").style.display="flex";
+  render();
+  toast("✦ Bienvenido, "+displayName+"!");
 }
 
-const savedProfile=loadProfile();
-if(savedProfile) S.currentUser=savedProfile;
+function saveDeckData(){
+  if(!S.currentUser||S.readOnlyUser) return;
+  // Debounce cloud
+  clearTimeout(saveDeckData._t);
+  saveDeckData._t=setTimeout(()=>cloudSaveDecks(S.currentUser.username,S.decks),1000);
+}
 
-const saved=load();
-S.decks=saved?.decks||DEFAULT_DECKS.map(d=>({...d,cards:d.cards.map(c=>({...c}))}));
-S.activeDeck=saved?.activeDeck||0;
+function saveFriends(){
+  if(!S.currentUser) return;
+  localStorage.setItem("friends_"+S.currentUser.username,JSON.stringify(S.friendsList));
+}
 
-// ─── HELPERS ───────────────────────────────────────────────────────────────
+// Check for existing session on load
+(async()=>{
+  const sess=loadSession();
+  if(sess){
+    const profiles=loadProfiles();
+    const u=sess.username;
+    let decks=await cloudLoadDecks(u)||[];
+    // For Eduardo, merge with defaults if empty
+    if(u==="eduardo"&&!decks.length) decks=EDUARDO_DECKS;
+    if(profiles[u]){
+      await startSession(u,sess.displayName||u,decks);
+    }
+  }
+})();
+
+// Allow Enter key on login
+document.addEventListener("keydown",e=>{if(e.key==="Enter"&&cardFlipped)doLogin();});
+
+// ═══════════════════════════════════════════════════════════════════════════
+// HELPERS
+// ═══════════════════════════════════════════════════════════════════════════
 function h(tag,attrs={},...children){
   const el=document.createElement(tag);
   for(const[k,v]of Object.entries(attrs)){
+    if(v==null) continue;
     if(k.startsWith("on"))el[k]=v;
     else if(k==="style")el.style.cssText=v;
     else el.setAttribute(k,v);
   }
   for(const c of children){
-    if(c==null)continue;
+    if(c==null) continue;
     if(c instanceof Node)el.appendChild(c);
     else el.appendChild(document.createTextNode(String(c)));
   }
   return el;
 }
-
-function scryImg(set,cn,size="normal"){
-  return `https://api.scryfall.com/cards/${set}/${cn}?format=image&version=${size}`;
+function scryImg(set,cn,name){
+  if(set&&cn) return `https://api.scryfall.com/cards/${set}/${cn}?format=image&version=normal`;
+  if(name) return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=normal`;
+  return "";
 }
-function scryArtCrop(set,cn){
-  return `https://api.scryfall.com/cards/${set}/${cn}?format=image&version=art_crop`;
+function scryArt(set,cn,name){
+  if(set&&cn) return `https://api.scryfall.com/cards/${set}/${cn}?format=image&version=art_crop`;
+  if(name) return `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}&format=image&version=art_crop`;
+  return "";
 }
-
 function deckStats(deck){
   const tot=deck.cards.reduce((a,c)=>a+(c.qty||1),0);
   const hav=deck.cards.filter(c=>c.status==="have").reduce((a,c)=>a+(c.qty||1),0);
   return{tot,hav,pct:tot>0?Math.round(hav/tot*100):0};
 }
-
 function manaRow(colors){
-  const d=document.createElement("div");
-  d.style.cssText="display:flex;gap:4px;align-items:center;";
-  colors.forEach(c=>{
-    const pip=document.createElement("span");
-    pip.className=`mana-pip pip-${c}`;
-    pip.textContent=c;
-    d.appendChild(pip);
-  });
+  const d=document.createElement("div");d.style.cssText="display:flex;gap:4px;align-items:center;";
+  (colors||[]).forEach(c=>{const p=document.createElement("span");p.className="mana-pip pip-"+c;p.textContent=c;d.appendChild(p);});
   return d;
 }
-
 let toastTimer;
 function toast(msg){
-  const t=document.getElementById("toast");
-  t.textContent=msg;t.classList.add("show");
-  clearTimeout(toastTimer);
-  toastTimer=setTimeout(()=>t.classList.remove("show"),2400);
+  const t=document.getElementById("toast");t.textContent=msg;t.classList.add("show");
+  clearTimeout(toastTimer);toastTimer=setTimeout(()=>t.classList.remove("show"),2400);
 }
+function isReadOnly(){return !!S.readOnlyUser;}
+function activeDecks(){return isReadOnly()?S.readOnlyDecks:S.decks;}
 
-// ─── RENDER ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// RENDER ENGINE
+// ═══════════════════════════════════════════════════════════════════════════
+const VIEWS=["home","deck","friends","profile","precons"];
+function getViewEl(v){
+  let el=document.getElementById("view-"+v);
+  if(!el){el=document.createElement("div");el.id="view-"+v;document.getElementById("main-scroll").appendChild(el);}
+  return el;
+}
 function render(){
   renderNav();
-  // Main views
-  const views=["home","deck","profile","friends","precons"];
-  views.forEach(v=>{
-    let el=document.getElementById("view-"+v);
-    if(!el){el=document.createElement("div");el.id="view-"+v;document.getElementById("main-scroll").appendChild(el);}
-    el.style.display=S.view===v?"block":"none";
-  });
-  if(S.view==="home") renderHome();
-  if(S.view==="deck") renderDeck();
-  if(S.view==="profile") renderProfile();
-  if(S.view==="friends") renderFriends();
-  if(S.view==="precons") renderPrecons();
+  VIEWS.forEach(v=>getViewEl(v).style.display=S.view===v?"block":"none");
+  if(S.view==="home")renderHome();
+  else if(S.view==="deck")renderDeck();
+  else if(S.view==="friends")renderFriends();
+  else if(S.view==="profile")renderProfile();
+  else if(S.view==="precons")renderPrecons();
   renderSheet();
 }
 
-// ─── NAV ───────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// NAV
+// ═══════════════════════════════════════════════════════════════════════════
 function renderNav(){
-  const nav=document.getElementById("bottom-nav");
-  nav.innerHTML="";
-  const isReadOnly=!!S.viewingUser;
-
-  const mkBtn=(icon,label,view,disabled)=>{
-    const btn=h("button",{class:"nav-btn"+((S.view===view&&!disabled)?" active":""),
-      onclick:disabled?null:()=>{S.view=view;S.sheet=null;render();}});
-    btn.style.opacity=disabled?"0.4":"1";
-    btn.innerHTML=icon;
-    btn.appendChild(document.createTextNode(""));
-    btn.appendChild(h("span",{},label));
-    return btn;
+  const nav=document.getElementById("bottom-nav");nav.innerHTML="";
+  const ro=isReadOnly();
+  const mkBtn=(svg,label,view)=>{
+    const btn=h("button",{class:"nav-btn"+(S.view===view?" active":""),onclick:()=>{if(!ro||view==="friends")goView(view);}});
+    btn.style.opacity=(ro&&view!=="friends")?"0.4":"1";
+    btn.innerHTML=svg;btn.appendChild(h("span",{},label));return btn;
   };
-  const homeIcon=`<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1V9.5z"/><polyline points="9 21 9 12 15 12 15 21"/></svg>`;
-  const listIcon=`<svg viewBox="0 0 24 24"><line x1="8" y1="6" x2="21" y2="6"/><line x1="8" y1="12" x2="21" y2="12"/><line x1="8" y1="18" x2="21" y2="18"/><circle cx="3" cy="6" r="1.2"/><circle cx="3" cy="12" r="1.2"/><circle cx="3" cy="18" r="1.2"/></svg>`;
-  const friendIcon=`<svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="4"/><path d="M3 21v-2a4 4 0 014-4h4a4 4 0 014 4v2"/><line x1="19" y1="8" x2="19" y2="14"/><line x1="22" y1="11" x2="16" y2="11"/></svg>`;
-  const profileIcon=`<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`;
-
-  const fab=h("button",{class:"fab","aria-label":"Agregar",
-    style:isReadOnly?"opacity:0.3;pointer-events:none;":"",
-    onclick:isReadOnly?null:()=>{S.sheet=S.view==="deck"?"addCard":S.view==="precons"?"precons":"newDeck";S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;render();}},"+");
-
-  nav.append(
-    mkBtn(homeIcon,"Decks","home"),
-    mkBtn(friendIcon,"Amigos","friends"),
-    fab,
-    mkBtn(profileIcon,"Perfil","profile"),
-    mkBtn(listIcon,"Deck","deck",!S.decks?.length)
-  );
+  const SVG={
+    home:`<svg viewBox="0 0 24 24"><path d="M3 9.5L12 3l9 6.5V20a1 1 0 01-1 1H4a1 1 0 01-1-1z"/><polyline points="9 21 9 12 15 12 15 21"/></svg>`,
+    deck:`<svg viewBox="0 0 24 24"><rect x="4" y="4" width="16" height="20" rx="2"/><line x1="8" y1="9" x2="16" y2="9"/><line x1="8" y1="13" x2="16" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>`,
+    friends:`<svg viewBox="0 0 24 24"><circle cx="9" cy="7" r="3"/><path d="M3 20c0-3.3 2.7-6 6-6s6 2.7 6 6"/><circle cx="17" cy="9" r="2.5"/><path d="M17 17c2.2 0 4 1.8 4 4"/></svg>`,
+    profile:`<svg viewBox="0 0 24 24"><circle cx="12" cy="8" r="4"/><path d="M4 20c0-4 3.6-7 8-7s8 3 8 7"/></svg>`,
+  };
+  const fab=h("button",{class:"fab"+(ro?" disabled":""),onclick:ro?null:()=>{
+    if(S.view==="deck"){S.sheet="addCard";S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;}
+    else{S.sheet="newDeckChoice";}
+    render();
+  }},"+");
+  nav.append(mkBtn(SVG.home,"Decks","home"),mkBtn(SVG.deck,"Deck","deck"),fab,mkBtn(SVG.friends,"Amigos","friends"),mkBtn(SVG.profile,"Perfil","profile"));
 }
+function goView(v){S.view=v;S.sheet=null;render();}
 
-// ─── HOME ──────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// HOME
+// ═══════════════════════════════════════════════════════════════════════════
 function renderHome(){
-  const el=document.getElementById("view-home");
-  el.innerHTML="";
-
-  // Topbar
-  const isReadOnly=!!S.viewingUser;
-  const displayName=isReadOnly?S.viewingUser:(S.currentUser?S.currentUser.username:"Mi colección");
+  const el=getViewEl("home");el.innerHTML="";
+  const decks=activeDecks();
+  const ro=isReadOnly();
   const bar=h("div",{class:"topbar"});
-  const titleWrap=h("div",{style:"flex:1;min-width:0"});
-  titleWrap.appendChild(h("div",{style:'font-family:"Cinzel Decorative",serif;font-size:17px;color:var(--gold-light);letter-spacing:.06em;text-shadow:0 0 20px rgba(201,168,76,0.4)'},"⬡ MTG Tracker"));
-  const subRow=h("div",{style:"display:flex;align-items:center;gap:8px;margin-top:2px"});
-  subRow.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);font-family:'Cinzel',serif;letter-spacing:.1em"},isReadOnly?"👁 VIENDO: "+displayName.toUpperCase():"GESTOR DE DECKS"));
-  if(isReadOnly){
-    const backBtn=h("button",{style:"font-size:10px;font-family:'Cinzel',serif;background:var(--danger-bg);border:1px solid var(--danger-light);border-radius:6px;padding:3px 8px;color:#ffaaaa;cursor:pointer;",
-      onclick:()=>{S.viewingUser=null;S.decks=S._ownDecks||S.decks;render();}},"✕ Volver a mis decks");
-    subRow.appendChild(backBtn);
+  if(ro){
+    const backBtn=h("button",{style:"background:none;border:none;cursor:pointer;color:var(--gold);font-size:20px;padding:0 8px 0 0",onclick:()=>{S.readOnlyUser=null;S.readOnlyDecks=null;S.view="friends";render();}},"‹");
+    bar.appendChild(backBtn);
   }
+  const titleWrap=h("div",{style:"flex:1;min-width:0"});
+  titleWrap.appendChild(h("div",{style:'font-family:"Cinzel Decorative",serif;font-size:16px;color:var(--gold-light);letter-spacing:.06em;text-shadow:0 0 20px rgba(201,168,76,.4)'},"⬡ MTG Tracker"));
+  titleWrap.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:2px;font-family:'Cinzel',serif;letter-spacing:.1em"},ro?"👁 "+S.readOnlyUser.toUpperCase():(S.currentUser?.displayName||"")));
   bar.appendChild(titleWrap);
-  bar.appendChild(subRow);
-  // Oops — fix layout: append subRow inside titleWrap
-  titleWrap.appendChild(subRow);
   el.appendChild(bar);
-
+  if(ro){
+    const rb=h("div",{class:"readonly-banner"});
+    rb.appendChild(h("span",{style:"font-family:'Cinzel',serif;font-size:11px;color:#ffaaaa"},"Solo lectura — decks de "+S.readOnlyUser));
+    rb.appendChild(h("button",{style:"background:none;border:none;color:#ffaaaa;font-size:11px;cursor:pointer;font-family:'Cinzel',serif",onclick:()=>{S.readOnlyUser=null;S.readOnlyDecks=null;S.view="friends";render();}},"← Mis decks"));
+    el.appendChild(rb);
+  }
   const body=h("div",{style:"padding:16px"});
-
-  // Ornament
-  const orn=h("div",{class:"ornament"},"✦ MIS DECKS ✦");
-  body.appendChild(orn);
-
-  // Deck cards
-  S.decks.forEach((deck,i)=>{
-    const{tot,hav,pct}=deckStats(deck);
-    const card=h("div",{class:"deck-card",onclick:()=>{S.activeDeck=i;S.view="deck";S.filter="all";S.catFilter="all";S.searchDeck="";render();}});
-    const frame=h("div",{class:"deck-card-frame"});
-
-    // Commander art crop as header
-    const imgWrap=h("div",{class:"commander-img-wrap"});
-    const img=document.createElement("img");
-    img.className="commander-img";
-    img.alt=deck.name;
-    img.src=scryArtCrop(deck.commanderSet,deck.commanderCn);
-    img.onerror=()=>{
-      img.src=scryImg(deck.commanderSet,deck.commanderCn);
-      img.style.objectPosition="top center";
-      img.onerror=()=>{ img.style.display="none"; };
-    };
-    const grad=h("div",{class:"commander-gradient"});
-    const nameOverlay=h("div",{class:"commander-name-overlay"});
-    nameOverlay.appendChild(h("div",{class:"mtg-title",style:"font-size:15px;margin-bottom:4px"},deck.name));
-    const metaRow=h("div",{style:"display:flex;align-items:center;gap:8px"});
-    metaRow.appendChild(manaRow(deck.colors));
-    metaRow.appendChild(h("span",{style:"font-size:11px;color:var(--text-dim);font-family:'Cinzel',serif;letter-spacing:.06em"},deck.expansion));
-    nameOverlay.appendChild(metaRow);
-    // ··· deck options button
-    const deckOptBtn=h("div",{style:`position:absolute;top:10px;right:10px;z-index:5;
-      width:30px;height:30px;border-radius:50%;
-      background:rgba(0,0,0,0.6);border:1px solid rgba(255,255,255,0.2);
-      display:flex;align-items:center;justify-content:center;
-      color:rgba(255,255,255,0.8);font-size:14px;cursor:pointer;letter-spacing:-1px;`},"···");
-    deckOptBtn.onclick=(e)=>{e.stopPropagation();showDeckMenu(i);};
-    imgWrap.append(img,grad,nameOverlay,deckOptBtn);
-    frame.appendChild(imgWrap);
-
-    // Body
-    const fb=h("div",{style:"padding:14px 16px 16px"});
-
-    // Progress
-    const prow=h("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:6px"});
-    prow.appendChild(h("span",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim)"},"PROGRESO"));
-    prow.appendChild(h("span",{style:`font-family:'Cinzel Decorative',serif;font-size:13px;color:${pct===100?"var(--success-light)":"var(--gold)"}`},pct+"%"));
-    fb.appendChild(prow);
-    const track=h("div",{class:"prog-track",style:"margin-bottom:10px"});
-    track.appendChild(h("div",{class:"prog-fill",style:`width:${pct}%`}));
-    fb.appendChild(track);
-
-    // Stats row
-    const statsRow=h("div",{style:"display:flex;gap:16px"});
-    [["Tengo",hav,"var(--success-light)"],["Faltan",tot-hav,"var(--danger-light)"],["Total",tot,"var(--gold)"]].forEach(([l,v,c])=>{
-      const s=h("div",{style:"text-align:center"});
-      s.appendChild(h("div",{style:`font-family:'Cinzel Decorative',serif;font-size:18px;color:${c}`},String(v)));
-      s.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:.1em"},l));
-      statsRow.appendChild(s);
-    });
-    fb.appendChild(statsRow);
-    frame.appendChild(fb);
-    card.appendChild(frame);
-    body.appendChild(card);
-  });
-
-  // New deck button
-  const newCard=h("div",{class:"new-deck-card",onclick:()=>{S.sheet="newDeck";S.newDeckStep=0;S.newDeck={name:"",expansion:"",colors:[],commanderName:"",commanderImg:null,commanderSet:"",commanderCn:""};render();}});
-  newCard.appendChild(h("div",{style:"font-size:28px;color:var(--gold);margin-bottom:8px"},"✦"));
-  newCard.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);letter-spacing:.1em;margin-bottom:4px"},"NUEVO DECK"));
-  newCard.appendChild(h("div",{style:"font-size:12px;color:var(--text-dim)"},"Crea un deck y agrega tus cartas"));
-  body.appendChild(newCard);
-
+  if(!decks||!decks.length){
+    const empty=h("div",{style:"text-align:center;padding:50px 0"});
+    empty.appendChild(h("div",{style:"font-size:40px;margin-bottom:12px"},"✦"));
+    empty.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--text-dim);letter-spacing:.1em;margin-bottom:4px"},"SIN DECKS AÚN"));
+    empty.appendChild(h("div",{style:"font-size:12px;color:var(--text-faint);margin-bottom:20px"},"Toca + para crear tu primer deck"));
+    body.appendChild(empty);
+  } else {
+    body.appendChild(h("div",{class:"ornament"},"✦ "+(ro?S.readOnlyUser.toUpperCase()+"'S DECKS":"MIS DECKS")+" ✦"));
+    decks.forEach((deck,i)=>body.appendChild(buildDeckCard(deck,i,ro)));
+  }
   el.appendChild(body);
 }
 
-// ─── DECK VIEW ─────────────────────────────────────────────────────────────
-function renderDeck(){
-  const el=document.getElementById("view-deck");
-  el.innerHTML="";
-  const deck=S.decks[S.activeDeck];
+function buildDeckCard(deck,i,ro){
   const{tot,hav,pct}=deckStats(deck);
+  const card=h("div",{class:"deck-card",onclick:()=>{if(!ro)S.activeDeck=i;else S.activeDeck=i;goView("deck");}});
+  const frame=h("div",{class:"deck-card-frame"});
+  // Commander image
+  const imgWrap=h("div",{class:"commander-img-wrap"});
+  if(deck.commanderSet&&deck.commanderCn){
+    const img=document.createElement("img");img.className="commander-img";img.alt=deck.name;
+    img.src=scryArt(deck.commanderSet,deck.commanderCn);
+    img.onerror=()=>{img.src=scryImg(deck.commanderSet,deck.commanderCn);img.onerror=()=>{img.style.display="none";};};
+    imgWrap.appendChild(img);
+  }
+  imgWrap.appendChild(h("div",{class:"commander-gradient"}));
+  const nameOv=h("div",{class:"commander-name-overlay"});
+  nameOv.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);margin-bottom:4px;text-shadow:0 1px 4px rgba(0,0,0,.8)"},deck.name));
+  const mr=h("div",{style:"display:flex;align-items:center;gap:8px"});
+  mr.appendChild(manaRow(deck.colors));
+  mr.appendChild(h("span",{style:"font-size:10px;color:var(--text-dim);font-family:'Cinzel',serif"},deck.expansion));
+  nameOv.appendChild(mr);imgWrap.appendChild(nameOv);
+  // Options button
+  if(!ro){
+    const optBtn=h("div",{style:"position:absolute;top:10px;right:10px;z-index:5;width:28px;height:28px;border-radius:50%;background:rgba(0,0,0,.7);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;color:rgba(255,255,255,.8);font-size:12px;cursor:pointer;letter-spacing:-1px"},"···");
+    optBtn.onclick=(e)=>{e.stopPropagation();showDeckMenu(i);};
+    imgWrap.appendChild(optBtn);
+  }
+  frame.appendChild(imgWrap);
+  // Body
+  const fb=h("div",{style:"padding:12px 14px 0"});
+  const pr=h("div",{style:"display:flex;justify-content:space-between;align-items:center;margin-bottom:5px"});
+  pr.appendChild(h("span",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim)"},"PROGRESO"));
+  pr.appendChild(h("span",{style:`font-family:'Cinzel Decorative',serif;font-size:12px;color:${pct===100?"var(--success-light)":"var(--gold)"}`},pct+"%"));
+  fb.appendChild(pr);
+  const track=h("div",{class:"prog-track",style:"margin-bottom:10px"});
+  track.appendChild(h("div",{class:"prog-fill",style:"width:"+pct+"%"}));fb.appendChild(track);
+  const sr=h("div",{style:"display:flex;gap:16px;margin-bottom:0"});
+  [["Tengo",hav,"var(--success-light)"],["Faltan",tot-hav,"var(--danger-light)"],["Total",tot,"var(--gold)"]].forEach(([l,v,c])=>{
+    const s=h("div",{style:"text-align:center"});
+    s.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:17px;color:"+c},String(v)));
+    s.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);letter-spacing:.08em"},l));
+    sr.appendChild(s);
+  });
+  fb.appendChild(sr);frame.appendChild(fb);
+  // Win counter bar
+  const wins=deck.wins||0;
+  const winBar=h("div",{class:"win-bar"});
+  const winLeft=h("div");
+  winLeft.appendChild(h("div",{class:"win-label"},"VICTORIAS"));
+  winLeft.appendChild(h("div",{class:"win-count"},["🏆 ",wins]));
+  winBar.appendChild(winLeft);
+  if(!ro){
+    const addWinBtn=h("button",{class:"win-btn",onclick:(e)=>{e.stopPropagation();S.decks[i].wins=(S.decks[i].wins||0)+1;saveDeckData();renderHome();}},"+");
+    const subWinBtn=h("button",{class:"win-btn",style:"font-size:16px;border-color:var(--border);background:transparent;color:var(--text-dim);margin-right:6px",onclick:(e)=>{e.stopPropagation();if(S.decks[i].wins>0){S.decks[i].wins--;saveDeckData();renderHome();}}},"-");
+    const btnWrap=h("div",{style:"display:flex;gap:6px;align-items:center"});
+    btnWrap.append(subWinBtn,addWinBtn);winBar.appendChild(btnWrap);
+  }
+  frame.appendChild(winBar);
+  card.appendChild(frame);return card;
+}
 
+// ═══════════════════════════════════════════════════════════════════════════
+// DECK VIEW
+// ═══════════════════════════════════════════════════════════════════════════
+function renderDeck(){
+  const el=getViewEl("deck");el.innerHTML="";
+  const decks=activeDecks();
+  if(!decks||!decks.length){el.appendChild(h("div",{style:"padding:40px 20px;text-align:center;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px"},"Sin decks. Crea uno desde la pantalla principal."));return;}
+  const deck=decks[Math.min(S.activeDeck,decks.length-1)];
+  const{tot,hav,pct}=deckStats(deck);
+  const ro=isReadOnly();
   // Topbar
   const bar=h("div",{class:"topbar"});
-  bar.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;color:var(--gold);display:flex;align-items:center;padding:4px 8px 4px 0;font-size:22px",onclick:()=>{S.view="home";render();}},"‹"));
+  bar.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;color:var(--gold);font-size:22px;padding:0 8px 0 0",onclick:()=>goView("home")},"‹"));
   bar.appendChild(h("div",{style:"flex:1;min-width:0"},
     h("div",{style:"font-family:'Cinzel',serif;font-size:14px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"},deck.name),
-    h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:1px"},deck.expansion+" · Commander")
-  ));
-  const pctSpan=h("span",{style:`font-family:'Cinzel Decorative',serif;font-size:13px;color:${pct===100?"var(--success-light)":"var(--gold)"}`},pct+"%");
-  bar.appendChild(pctSpan);
+    h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:1px"},deck.expansion+" · Commander"+(ro?" · 👁 Solo lectura":""))));
+  bar.appendChild(h("span",{style:"font-family:'Cinzel Decorative',serif;font-size:12px;color:"+(pct===100?"var(--success-light)":"var(--gold)")},pct+"%"));
   el.appendChild(bar);
-
-  // Stat strip
+  // Stats
   const strip=h("div",{class:"stat-strip",style:"border-bottom:1px solid var(--border)"});
   [["Total",tot,"var(--gold)"],["Tengo",hav,"var(--success-light)"],["Faltan",tot-hav,"var(--danger-light)"]].forEach(([l,v,c],i)=>{
     const cell=h("div",{class:"stat-cell"});
-    cell.appendChild(h("div",{class:"stat-num",style:`color:${c}`},String(v)));
+    cell.appendChild(h("div",{class:"stat-num",style:"color:"+c},String(v)));
     cell.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);margin-top:3px;letter-spacing:.12em"},l));
-    strip.appendChild(cell);
-  });
+    strip.appendChild(cell);});
   el.appendChild(strip);
-
-  // Progress
   const prog=h("div",{style:"padding:8px 16px;background:var(--surface);border-bottom:1px solid var(--border)"});
-  const pt=h("div",{class:"prog-track"});
-  pt.appendChild(h("div",{class:"prog-fill",style:`width:${pct}%`}));
-  prog.appendChild(pt);
-  el.appendChild(prog);
-
+  const pt=h("div",{class:"prog-track"});pt.appendChild(h("div",{class:"prog-fill",style:"width:"+pct+"%"}));prog.appendChild(pt);el.appendChild(prog);
   // Body
   const body=h("div",{style:"padding:12px 16px 20px"});
-
-  // Filter pills
   const fr=h("div",{style:"display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px"});
   [["all","Todas"],["have","✓ Tengo"],["need","✗ Faltan"]].forEach(([f,lbl])=>{
-    fr.appendChild(h("button",{class:"pill"+(S.filter===f?" active":""),onclick:()=>{S.filter=f;renderDeck();}},lbl));
-  });
+    fr.appendChild(h("button",{class:"pill"+(S.filter===f?" active":""),onclick:()=>{S.filter=f;renderDeck();}},lbl));});
   body.appendChild(fr);
-
-  // Category pills
-  const cats=[...new Set(deck.cards.map(c=>c.cat))];
+  const cats=[...new Set(deck.cards.map(c=>c.cat))].sort((a,b)=>{const ai=CAT_ORDER.indexOf(a),bi=CAT_ORDER.indexOf(b);return(ai<0?99:ai)-(bi<0?99:bi);});
   const cr=h("div",{style:"display:flex;gap:6px;margin-bottom:10px;overflow-x:auto;padding-bottom:2px"});
   cr.appendChild(h("button",{class:"pill"+(S.catFilter==="all"?" active":""),onclick:()=>{S.catFilter="all";renderDeck();}},"Todas"));
-  cats.forEach(cat=>{
-    cr.appendChild(h("button",{class:"pill"+(S.catFilter===cat?" active":""),onclick:()=>{S.catFilter=cat;renderDeck();}},`${CAT_ICONS[cat]||"○"} ${cat}`));
-  });
+  cats.forEach(cat=>cr.appendChild(h("button",{class:"pill"+(S.catFilter===cat?" active":""),onclick:()=>{S.catFilter=cat;renderDeck();}},`${CAT_ICONS[cat]||"○"} ${cat}`)));
   body.appendChild(cr);
-
-  // Search
   const si=h("input",{type:"search",placeholder:"Buscar carta en el deck...",value:S.searchDeck,style:"margin-bottom:14px"});
-  si.addEventListener("input",e=>{S.searchDeck=e.target.value;renderDeck();});
-  body.appendChild(si);
-
-  // Filtered cards
+  si.addEventListener("input",e=>{S.searchDeck=e.target.value;renderDeck();});body.appendChild(si);
   const visible=deck.cards.filter(c=>{
     if(S.filter==="have"&&c.status!=="have")return false;
     if(S.filter==="need"&&c.status!=="need")return false;
@@ -953,726 +880,587 @@ function renderDeck(){
     if(S.searchDeck&&!c.name.toLowerCase().includes(S.searchDeck.toLowerCase()))return false;
     return true;
   });
-
-  // Sort categories: Commander first, then by CAT_ORDER, lands last
-  const visCatsRaw=[...new Set(visible.map(c=>c.cat))];
-  const visCats=visCatsRaw.sort((a,b)=>{
-    const ai=CAT_ORDER.indexOf(a); const bi=CAT_ORDER.indexOf(b);
-    return (ai===-1?99:ai)-(bi===-1?99:bi);
-  });
-  if(!visible.length){
-    body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-size:14px"},"Sin cartas para mostrar"));
-  }
-
+  const visCats=[...new Set(visible.map(c=>c.cat))].sort((a,b)=>{const ai=CAT_ORDER.indexOf(a),bi=CAT_ORDER.indexOf(b);return(ai<0?99:ai)-(bi<0?99:bi);});
+  if(!visible.length)body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-size:14px"},"Sin cartas para mostrar"));
   visCats.forEach(cat=>{
     const cards=visible.filter(c=>c.cat===cat);
-    const cHav=cards.filter(c=>c.status==="have").reduce((a,c)=>a+(c.qty||1),0);
-    const cTot=cards.reduce((a,c)=>a+(c.qty||1),0);
+    const cH=cards.filter(c=>c.status==="have").reduce((a,c)=>a+(c.qty||1),0);
+    const cT=cards.reduce((a,c)=>a+(c.qty||1),0);
     const sec=h("div",{style:"margin-bottom:22px"});
     const head=h("div",{class:"sec-head"});
     head.appendChild(h("span",{class:"sec-title"},`${CAT_ICONS[cat]||"○"} ${cat}`));
-    const badge=h("span",{class:"sec-badge"},`${cHav}/${cTot}`);
-    if(cHav===cTot)badge.style.color="var(--success-light)";
-    head.appendChild(badge);
-    sec.appendChild(head);
+    const badge=h("span",{class:"sec-badge",style:cH===cT?"color:var(--success-light)":""},`${cH}/${cT}`);
+    head.appendChild(badge);sec.appendChild(head);
     const grid=h("div",{class:"card-grid"});
-    cards.forEach(card=>grid.appendChild(buildTile(card,deck)));
-    sec.appendChild(grid);
-    body.appendChild(sec);
+    cards.forEach(card=>grid.appendChild(buildTile(card,deck,ro)));
+    sec.appendChild(grid);body.appendChild(sec);
   });
-
   el.appendChild(body);
 }
 
-// ─── CARD TILE ─────────────────────────────────────────────────────────────
-function buildTile(card,deck){
+function buildTile(card,deck,ro){
   const have=card.status==="have";
   const wrap=h("div",{class:"card-tile"});
-
   const img=document.createElement("img");
   img.className="card-tile-img "+(have?"have":"need");
   img.alt=card.name;img.loading="lazy";img.decoding="async";
   img.src=scryImg(card.set,card.cn);
-  img.onerror=()=>{
-    img.remove();
-    wrap.insertBefore(h("div",{class:"card-fallback"},card.name),wrap.firstChild);
-  };
+  img.onerror=()=>{img.remove();wrap.insertBefore(h("div",{class:"card-fallback"},card.name),wrap.firstChild);};
   wrap.appendChild(img);
-
-  // Status badge (tap to toggle)
   wrap.appendChild(h("div",{class:"status-badge "+(have?"badge-have":"badge-need")},have?"✓":"✗"));
-
-  // ··· menu button (top-left)
-  const menuBtn=h("div",{style:`position:absolute;top:5px;left:5px;width:22px;height:22px;
-    border-radius:50%;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,0.2);
-    display:flex;align-items:center;justify-content:center;
-    font-size:11px;color:rgba(255,255,255,0.7);cursor:pointer;z-index:3;
-    letter-spacing:-1px;`},"···");
-  menuBtn.onclick=(e)=>{
-    e.stopPropagation();
-    showCardMenu(card,deck);
-  };
-  wrap.appendChild(menuBtn);
-
-  if((card.qty||1)>1){
-    wrap.appendChild(h("div",{style:"position:absolute;bottom:22px;left:4px;background:rgba(0,0,0,.8);border:1px solid var(--border2);border-radius:5px;padding:1px 6px;font-family:'Cinzel',serif;font-size:9px;color:var(--gold);"},"x"+(card.qty||1)));
+  if(!ro){
+    const menuBtn=h("div",{style:"position:absolute;top:5px;left:5px;width:22px;height:22px;border-radius:50%;background:rgba(0,0,0,.75);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;font-size:10px;color:rgba(255,255,255,.7);cursor:pointer;z-index:3;letter-spacing:-1px"},"···");
+    menuBtn.onclick=(e)=>{e.stopPropagation();showCardMenu(card,deck);};
+    wrap.appendChild(menuBtn);
   }
-  if(card.avatar){
-    wrap.appendChild(h("div",{style:"position:absolute;bottom:22px;right:4px;background:rgba(139,26,26,.85);border-radius:4px;padding:1px 5px;font-size:8px;color:#ffcccc;font-family:'Cinzel',serif;"},"Avatar"));
-  }
+  if((card.qty||1)>1)wrap.appendChild(h("div",{style:"position:absolute;bottom:22px;left:4px;background:rgba(0,0,0,.8);border:1px solid var(--border2);border-radius:5px;padding:1px 6px;font-family:'Cinzel',serif;font-size:9px;color:var(--gold);"},"x"+(card.qty||1)));
+  if(card.avatar)wrap.appendChild(h("div",{style:"position:absolute;bottom:22px;right:4px;background:rgba(139,26,26,.85);border-radius:4px;padding:1px 5px;font-size:8px;color:#ffcccc;font-family:'Cinzel',serif;"},"Avatar"));
   wrap.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);text-align:center;margin-top:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"},card.name));
-
-  // Tap = show card preview with price
-  wrap.onclick=()=>{ showCardPreview(card); };
+  wrap.onclick=()=>showCardPreview(card);
   return wrap;
 }
 
-// Card action menu (toggle + remove)
+// ═══════════════════════════════════════════════════════════════════════════
+// CARD MENU
+// ═══════════════════════════════════════════════════════════════════════════
 function showCardMenu(card,deck){
-  // Remove existing menu if open
-  const existing=document.getElementById("card-action-menu");
-  if(existing){existing.remove();return;}
-
+  const existing=document.getElementById("card-action-menu");if(existing){existing.remove();return;}
   const have=card.status==="have";
-  const overlay=h("div",{id:"card-action-menu",style:`
-    position:fixed;inset:0;z-index:300;
-    background:rgba(0,0,0,0.65);
-    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
-    display:flex;align-items:flex-end;justify-content:center;
-  `});
+  const overlay=h("div",{id:"card-action-menu",style:"position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;"});
   overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
-
-  const panel=h("div",{style:`
-    background:linear-gradient(180deg,#1a1020 0%,#120c18 100%);
-    border:1px solid var(--border2);
-    border-radius:20px 20px 0 0;
-    width:100%;max-width:420px;
-    padding:16px 16px calc(20px + var(--safe-bottom));
-  `});
-
-  // Handle
-  panel.appendChild(h("div",{style:"display:flex;justify-content:center;margin-bottom:12px"},
-    h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"})));
-
-  // Card name header
-  panel.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);text-align:center;margin-bottom:4px;letter-spacing:.06em"},card.name));
-  panel.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:16px;font-family:'Cinzel',serif;letter-spacing:.08em"},card.cat));
-
-  // Toggle button
-  const have2=card.status==="have";
-  const toggleBtn=h("button",{style:`
-    width:100%;padding:13px;margin-bottom:10px;
-    border-radius:10px;border:1px solid;cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:${have2?"var(--danger-bg)":"var(--success-bg)"};
-    border-color:${have2?"var(--danger-light)":"var(--success-light)"};
-    color:${have2?"#ffaaaa":"#aaffcc"};
-  `},have2?"✗  Marcar como pendiente":"✓  Marcar como conseguida");
-  toggleBtn.onclick=()=>{
-    const c=deck.cards.find(x=>x.id===card.id);
-    if(c)c.status=c.status==="have"?"need":"have";
-    toast(c.status==="have"?`✓ ${c.name} conseguida`:`${c.name} pendiente`);
-    save();overlay.remove();renderDeck();
-  };
+  const panel=h("div",{style:"background:linear-gradient(180deg,#1a1020,#120c18);border:1px solid var(--border2);border-radius:20px 20px 0 0;width:100%;max-width:420px;padding:16px 16px calc(20px + var(--safe-bottom));"});
+  panel.appendChild(h("div",{style:"display:flex;justify-content:center;margin-bottom:12px"},h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"})));
+  panel.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);text-align:center;margin-bottom:2px;letter-spacing:.06em"},card.name));
+  panel.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:14px"},card.cat));
+  // Toggle
+  const toggleBtn=h("button",{style:"width:100%;padding:13px;margin-bottom:10px;border-radius:10px;border:1px solid;cursor:pointer;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;background:"+(have?"var(--danger-bg)":"var(--success-bg)")+";border-color:"+(have?"var(--danger-light)":"var(--success-light)")+";color:"+(have?"#ffaaaa":"#aaffcc")},have?"✗  Marcar como pendiente":"✓  Marcar como conseguida");
+  toggleBtn.onclick=()=>{const c=deck.cards.find(x=>x.id===card.id);if(c)c.status=c.status==="have"?"need":"have";toast(c.status==="have"?`✓ ${c.name} conseguida`:`${c.name} pendiente`);saveDeckData();overlay.remove();renderDeck();};
   panel.appendChild(toggleBtn);
-
-  // Remove button
-  const removeBtn=h("button",{style:`
-    width:100%;padding:13px;margin-bottom:10px;
-    border-radius:10px;border:1px solid var(--danger-light);cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:rgba(139,32,32,0.35);color:#ff8888;
-  `},"🗑  Eliminar carta del deck");
-  removeBtn.onclick=()=>{
-    // Confirm before removing
-    removeBtn.textContent="¿Seguro? Toca de nuevo para confirmar";
-    removeBtn.style.background="rgba(180,20,20,0.6)";
-    removeBtn.style.borderColor="#ff4444";
-    removeBtn.onclick=()=>{
-      deck.cards=deck.cards.filter(x=>x.id!==card.id);
-      toast(`🗑 ${card.name} eliminada del deck`);
-      save();overlay.remove();renderDeck();
-    };
-  };
-  panel.appendChild(removeBtn);
-
-  // Change category button
-  const changeCatBtn=h("button",{style:`width:100%;padding:13px;margin-bottom:10px;
-    border-radius:10px;border:1px solid var(--border2);cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:rgba(201,168,76,0.08);color:var(--gold);`},"📂  Cambiar categoría");
+  // Change category
+  const changeCatBtn=h("button",{style:"width:100%;padding:13px;margin-bottom:10px;border-radius:10px;border:1px solid var(--border2);cursor:pointer;font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;background:var(--gold-dim);color:var(--gold);"},"📂  Cambiar categoría");
   changeCatBtn.onclick=()=>{
-    // Replace button with inline select
     const catDiv=h("div",{style:"margin-bottom:10px"});
-    const catLabel=h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:6px"},"MOVER A CATEGORÍA:");
-    const catSelect=document.createElement("select");
-    catSelect.style.cssText="width:100%;padding:10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'Cinzel',serif;font-size:11px;";
-    CAT_ORDER.forEach(c=>{
-      const o=document.createElement("option");
-      o.value=c;o.textContent=`${CAT_ICONS[c]||"○"} ${c}`;
-      if(c===card.cat)o.selected=true;
-      catSelect.appendChild(o);
-    });
-    const applyBtn=h("button",{style:`width:100%;padding:10px;margin-top:6px;
-      border-radius:8px;border:1px solid var(--gold);cursor:pointer;
-      font-family:'Cinzel',serif;font-size:11px;
-      background:var(--gold-dim);color:var(--gold-light);`},"Aplicar");
+    const catSelect=document.createElement("select");catSelect.style.cssText="width:100%;padding:10px;border-radius:8px;background:var(--surface2);border:1px solid var(--border2);color:var(--text);font-family:'Cinzel',serif;font-size:11px;margin-bottom:8px;";
+    CAT_ORDER.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=`${CAT_ICONS[c]||"○"} ${c}`;if(c===card.cat)o.selected=true;catSelect.appendChild(o);});
+    const applyBtn=h("button",{class:"btn btn-gold",style:"width:100%;padding:10px;"},  "Aplicar");
     applyBtn.onclick=()=>{
       const newCat=catSelect.value;
       const c=deck.cards.find(x=>x.id===card.id);
-      if(c){
-        c.cat=newCat;
-        // If set as Commander, move to top
-        if(newCat==="Commander"){
-          deck.cards=deck.cards.filter(x=>x.id!==card.id);
-          deck.cards.unshift(c);
-          // Update deck commander image
-          deck.commanderSet=c.set;deck.commanderCn=c.cn;
-        }
-      }
-      toast(`📂 ${card.name} → ${newCat}`);save();overlay.remove();renderDeck();
+      if(c){c.cat=newCat;if(newCat==="Commander"){deck.cards=deck.cards.filter(x=>x.id!==card.id);deck.cards.unshift(c);deck.commanderSet=c.set;deck.commanderCn=c.cn;}}
+      toast(`📂 ${card.name} → ${newCat}`);saveDeckData();overlay.remove();renderDeck();
     };
-    catDiv.append(catLabel,catSelect,applyBtn);
-    changeCatBtn.replaceWith(catDiv);
+    catDiv.append(catSelect,applyBtn);changeCatBtn.replaceWith(catDiv);
   };
   panel.appendChild(changeCatBtn);
-
-  // Cancel
-  panel.appendChild(h("button",{style:`
-    width:100%;padding:12px;
-    border-radius:10px;border:1px solid var(--border);cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:transparent;color:var(--text-dim);
-  `,onclick:()=>overlay.remove()},"Cancelar"));
-
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
+  // Remove
+  const removeBtn=h("button",{style:"width:100%;padding:13px;margin-bottom:10px;border-radius:10px;border:1px solid var(--danger-light);cursor:pointer;font-family:'Cinzel',serif;font-size:12px;background:var(--danger-bg);color:#ff8888;"},"🗑  Eliminar del deck");
+  removeBtn.onclick=()=>{removeBtn.textContent="¿Seguro? Toca de nuevo";removeBtn.style.background="rgba(180,20,20,.6)";removeBtn.onclick=()=>{deck.cards=deck.cards.filter(x=>x.id!==card.id);toast(`🗑 ${card.name} eliminada`);saveDeckData();overlay.remove();renderDeck();};};
+  panel.appendChild(removeBtn);
+  panel.appendChild(h("button",{style:"width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);cursor:pointer;font-family:'Cinzel',serif;font-size:12px;background:transparent;color:var(--text-dim);",onclick:()=>overlay.remove()},"Cancelar"));
+  overlay.appendChild(panel);document.body.appendChild(overlay);
 }
 
-// ─── SHEETS ────────────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// DECK MENU
+// ═══════════════════════════════════════════════════════════════════════════
+function showDeckMenu(deckIdx){
+  const existing=document.getElementById("deck-action-menu");if(existing){existing.remove();return;}
+  const deck=S.decks[deckIdx];
+  const overlay=h("div",{id:"deck-action-menu",style:"position:fixed;inset:0;z-index:300;background:rgba(0,0,0,.65);backdrop-filter:blur(4px);display:flex;align-items:flex-end;justify-content:center;"});
+  overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
+  const panel=h("div",{style:"background:linear-gradient(180deg,#1a1020,#120c18);border:1px solid var(--border2);border-radius:20px 20px 0 0;width:100%;max-width:420px;padding:16px 16px calc(20px + var(--safe-bottom));"});
+  panel.appendChild(h("div",{style:"display:flex;justify-content:center;margin-bottom:12px"},h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"})));
+  panel.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);text-align:center;margin-bottom:4px"},deck.name));
+  panel.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:16px"},deck.expansion));
+  panel.appendChild(h("button",{style:"width:100%;padding:13px;margin-bottom:10px;border-radius:10px;border:1px solid var(--border2);cursor:pointer;font-family:'Cinzel',serif;font-size:12px;background:var(--gold-dim);color:var(--gold-light);",onclick:()=>{S.activeDeck=deckIdx;overlay.remove();goView("deck");}},"✦  Abrir deck"));
+  const delBtn=h("button",{style:"width:100%;padding:13px;margin-bottom:10px;border-radius:10px;border:1px solid var(--danger-light);cursor:pointer;font-family:'Cinzel',serif;font-size:12px;background:var(--danger-bg);color:#ff8888;"},"🗑  Eliminar deck");
+  delBtn.onclick=()=>{delBtn.textContent="¿Seguro? Toca de nuevo para confirmar";delBtn.style.background="rgba(180,20,20,.6)";delBtn.onclick=()=>{S.decks.splice(deckIdx,1);if(S.activeDeck>=S.decks.length)S.activeDeck=Math.max(0,S.decks.length-1);toast("🗑 Deck eliminado");saveDeckData();overlay.remove();render();};};
+  panel.appendChild(delBtn);
+  panel.appendChild(h("button",{style:"width:100%;padding:12px;border-radius:10px;border:1px solid var(--border);cursor:pointer;font-family:'Cinzel',serif;font-size:12px;background:transparent;color:var(--text-dim);",onclick:()=>overlay.remove()},"Cancelar"));
+  overlay.appendChild(panel);document.body.appendChild(overlay);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// CARD PREVIEW + PRICE
+// ═══════════════════════════════════════════════════════════════════════════
+async function showCardPreview(card){
+  const modal=document.getElementById("card-preview-modal");
+  modal.innerHTML="";modal.style.display="flex";
+  const img=document.createElement("img");
+  img.src=scryImg(card.set,card.cn);img.alt=card.name;
+  img.style.cssText="max-width:280px;width:100%;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,.8);margin-bottom:16px;";
+  img.onerror=()=>{img.src=`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=normal`;};
+  modal.appendChild(img);
+  const priceBox=h("div",{style:"background:rgba(14,8,22,.9);border:1px solid var(--border2);border-radius:12px;padding:14px 20px;width:100%;max-width:280px;text-align:center;"});
+  priceBox.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--gold-light);margin-bottom:6px;letter-spacing:.06em"},card.name));
+  const pr=h("div",{style:"display:flex;justify-content:center;gap:24px;margin-bottom:6px"});
+  const usdEl=h("div",{style:"text-align:center"});usdEl.appendChild(h("div",{style:"font-size:9px;color:var(--text-dim);font-family:'Cinzel',serif;margin-bottom:2px"},"USD"));
+  const usdP=h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:20px;color:var(--gold)"},"...");usdEl.appendChild(usdP);
+  const eurEl=h("div",{style:"text-align:center"});eurEl.appendChild(h("div",{style:"font-size:9px;color:var(--text-dim);font-family:'Cinzel',serif;margin-bottom:2px"},"EUR"));
+  const eurP=h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:20px;color:var(--gold)"},"...");eurEl.appendChild(eurP);
+  pr.append(usdEl,eurEl);priceBox.appendChild(pr);
+  const updEl=h("div",{style:"font-size:9px;color:var(--text-faint);font-family:'Cinzel',serif"},"Actualizando precio...");
+  priceBox.appendChild(updEl);modal.appendChild(priceBox);
+  modal.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-faint);margin-top:12px;letter-spacing:.1em"},"Toca fuera para cerrar"));
+  try{
+    const r=await fetch(`https://api.scryfall.com/cards/${card.set}/${card.cn}`);
+    if(r.ok){const d=await r.json();const usd=d.prices?.usd||d.prices?.usd_foil;const eur=d.prices?.eur||d.prices?.eur_foil;usdP.textContent=usd?"$"+usd:"N/A";eurP.textContent=eur?"€"+eur:"N/A";const now=new Date();updEl.textContent="Actualizado: "+now.toLocaleTimeString("es-GT",{hour:"2-digit",minute:"2-digit"});}
+  }catch(e){usdP.textContent="—";eurP.textContent="—";updEl.textContent="Sin conexión";}
+}
+document.getElementById("card-preview-modal").onclick=function(){this.style.display="none";};
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SHEETS
+// ═══════════════════════════════════════════════════════════════════════════
 function renderSheet(){
   const ov=document.getElementById("sheet-overlay");
   if(!S.sheet){ov.style.display="none";return;}
   ov.style.display="flex";ov.innerHTML="";
   ov.onclick=e=>{if(e.target===ov)closeSheet();};
-  if(S.sheet==="addCard")buildAddCardSheet(ov);
-  if(S.sheet==="newDeck")buildNewDeckSheet(ov);
+  if(S.sheet==="newDeckChoice")buildNewDeckChoice(ov);
+  else if(S.sheet==="newDeckForm")buildNewDeckForm(ov);
+  else if(S.sheet==="preconPicker")buildPreconPicker(ov);
+  else if(S.sheet==="addCard")buildAddCardSheet(ov);
 }
 function closeSheet(){S.sheet=null;render();}
 
-// ADD CARD SHEET
-function buildAddCardSheet(ov){
-  const sheet=h("div",{class:"sheet"});
-  sheet.appendChild(h("div",{style:"display:flex;justify-content:center;margin-bottom:14px"},
-    h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"})));
-  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);margin-bottom:14px;letter-spacing:.06em"},"✦ Agregar Carta"));
+function sheetHandle(){return h("div",{style:"display:flex;justify-content:center;margin-bottom:14px"},h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"}));}
 
-  const si=h("input",{type:"search",placeholder:"Busca cualquier carta de Magic...",value:S.addQuery,style:"margin-bottom:12px"});
-  si.addEventListener("input",e=>{S.addQuery=e.target.value;debounceSearch(e.target.value,"search-results-add");});
-  sheet.appendChild(si);setTimeout(()=>si.focus(),150);
-
-  const optRow=h("div",{style:"display:flex;gap:8px;margin-bottom:14px;align-items:center"});
-  const catSel=document.createElement("select");
-  catSel.style.flex="1";
-  catSel.id="cat-select-add";
-  ALL_CATS.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=`${CAT_ICONS[c]||"○"} ${c}`;if(c===S.addCat)o.selected=true;catSel.appendChild(o);});
-  catSel.onchange=e=>{S.addCat=e.target.value;S.lastAutoCat=null;};
-  optRow.appendChild(catSel);
-  const stepper=h("div",{style:"display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:4px 10px"});
-  stepper.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;font-size:20px;color:var(--gold);line-height:1;padding:0",onclick:()=>{S.addQty=Math.max(1,S.addQty-1);renderSheet();}},"−"));
-  stepper.appendChild(h("span",{style:"font-family:'Cinzel',serif;font-size:14px;min-width:20px;text-align:center;color:var(--gold-light)"},String(S.addQty)));
-  stepper.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;font-size:20px;color:var(--gold);line-height:1;padding:0",onclick:()=>{S.addQty=Math.min(20,S.addQty+1);renderSheet();}},"+")); 
-  optRow.appendChild(stepper);
-  sheet.appendChild(optRow);
-
-  // Results container - updated in place without re-rendering the sheet
-  const resultsDiv=h("div",{id:"search-results-add",style:"margin-bottom:4px"});
-  if(!S.addQuery||S.addQuery.length<2){
-    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:20px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Escribe el nombre de cualquier carta de Magic"));
-  }
-  sheet.appendChild(resultsDiv);
-  // Populate if there are existing results (e.g. returning to sheet)
-  if(S.addResults.length||S.addSelected) renderSearchResults("search-results-add",false);
-
+// ── NEW DECK CHOICE ────────────────────────────────────────────────────────
+function buildNewDeckChoice(ov){
+  const sheet=h("div",{class:"sheet"});sheet.appendChild(sheetHandle());
+  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);margin-bottom:16px;letter-spacing:.06em;text-align:center"},"✦ Nuevo Deck"));
+  const opt1=h("div",{class:"new-deck-option",onclick:()=>{S.sheet="newDeckForm";S.newDeckStep=0;S.newDeck={name:"",expansion:"",colors:[],commanderName:"",commanderImg:null,commanderSet:"",commanderCn:""};S.addQuery="";S.addResults=[];render();}});
+  opt1.appendChild(h("div",{style:"font-size:28px;margin-bottom:8px"},"✦"));
+  opt1.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);letter-spacing:.1em;margin-bottom:4px"},"CREAR DESDE CERO"));
+  opt1.appendChild(h("div",{style:"font-size:12px;color:var(--text-dim)"},"Busca tu commander y arma el deck a tu gusto"));
+  const opt2=h("div",{class:"new-deck-option",onclick:()=>{S.sheet="preconPicker";S.preconQuery="";S.preconResults=[];render();}});
+  opt2.appendChild(h("div",{style:"font-size:28px;margin-bottom:8px"},"🎴"));
+  opt2.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);letter-spacing:.1em;margin-bottom:4px"},"IMPORTAR PRECON"));
+  opt2.appendChild(h("div",{style:"font-size:12px;color:var(--text-dim)"},"Agrega un deck pre-construido oficial de cualquier expansión"));
+  sheet.append(opt1,opt2);
   sheet.appendChild(h("button",{class:"btn",style:"width:100%;padding:12px;margin-top:4px",onclick:closeSheet},"Cancelar"));
   ov.appendChild(sheet);
 }
 
-// NEW DECK SHEET
-function buildNewDeckSheet(ov){
+// ── NEW DECK FROM SCRATCH ──────────────────────────────────────────────────
+function buildNewDeckForm(ov){
   const nd=S.newDeck;
-  const sheet=h("div",{class:"sheet"});
-  sheet.appendChild(h("div",{style:"display:flex;justify-content:center;margin-bottom:14px"},
-    h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"})));
-  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);margin-bottom:6px;letter-spacing:.06em"},"✦ Nuevo Deck"));
-
-  // Step indicators
-  const steps=["Commander","Nombre","Colores"];
-  const stepRow=h("div",{style:"display:flex;gap:6px;margin-bottom:18px;justify-content:center"});
-  steps.forEach((s,i)=>{
-    const active=i===S.newDeckStep;
-    const dot=h("div",{style:`width:8px;height:8px;border-radius:50%;background:${active?"var(--gold)":"var(--border2)"};transition:background .3s`});
-    stepRow.appendChild(dot);
-  });
+  const sheet=h("div",{class:"sheet"});sheet.appendChild(sheetHandle());
+  const steps=["Commander","Nombre","Confirmar"];
+  const stepRow=h("div",{style:"display:flex;gap:8px;justify-content:center;margin-bottom:16px"});
+  steps.forEach((_,i)=>stepRow.appendChild(h("div",{style:"width:8px;height:8px;border-radius:50%;background:"+(i===S.newDeckStep?"var(--gold)":"var(--border2)")})));
   sheet.appendChild(stepRow);
 
   if(S.newDeckStep===0){
-    // Step 0: search commander
     sheet.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"PASO 1 — Busca tu Commander"));
     const si=h("input",{type:"search",placeholder:"Nombre del commander...",value:S.addQuery||"",style:"margin-bottom:12px"});
-    si.addEventListener("input",e=>{S.addQuery=e.target.value;nd.commanderName=e.target.value;debounceCommanderSearch(e.target.value,"search-results-cmd");});
+    si.addEventListener("input",e=>{S.addQuery=e.target.value;debounceCommanderSearch(e.target.value,"cmd-results");});
     sheet.appendChild(si);setTimeout(()=>si.focus(),150);
-
-    const cmdResultsDiv=h("div",{id:"search-results-cmd",style:"margin-bottom:4px"});
-    if(!S.addQuery||S.addQuery.length<2){
-      cmdResultsDiv.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Busca el nombre del Commander"));
-    }
-    sheet.appendChild(cmdResultsDiv);
-    if(S.addResults.length||S.addSelected) renderSearchResults("search-results-cmd",true);
+    const resultsDiv=h("div",{id:"cmd-results",style:"margin-bottom:12px"});
+    if(!S.addQuery)resultsDiv.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px"},"Escribe el nombre de tu commander"));
+    sheet.appendChild(resultsDiv);
+    if(S.addResults.length) renderCmdResults("cmd-results");
+    sheet.appendChild(h("button",{class:"btn",style:"width:100%;padding:12px",onclick:closeSheet},"Cancelar"));
   }
-
   else if(S.newDeckStep===1){
-    // Step 1: name & expansion
     sheet.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"PASO 2 — Nombre del Deck"));
     if(nd.commanderImg){
-      const preview=h("div",{style:"display:flex;gap:12px;align-items:center;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px;margin-bottom:14px"});
-      const ci=document.createElement("img");ci.src=nd.commanderImg;ci.style.cssText="width:60px;border-radius:6px;";
-      preview.appendChild(ci);
-      const info=h("div");
-      info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light)"},nd.commanderName));
-      info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:3px"},nd.colors.join(" / ")||"Sin colores detectados"));
-      preview.appendChild(info);
-      sheet.appendChild(preview);
+      const prev=h("div",{style:"display:flex;gap:12px;align-items:center;background:var(--surface2);border:1px solid var(--border2);border-radius:10px;padding:10px;margin-bottom:14px;"});
+      const ci=document.createElement("img");ci.src=nd.commanderImg;ci.style.cssText="width:60px;border-radius:6px;";prev.appendChild(ci);
+      const info=h("div");info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light)"},nd.commanderName));
+      info.appendChild(manaRow(nd.colors));prev.appendChild(info);sheet.appendChild(prev);
     }
-    const nameIn=h("input",{type:"text",placeholder:"Nombre del deck (ej: Azula Spellslinger)",value:nd.name||nd.commanderName||"",style:"margin-bottom:10px"});
-    nameIn.addEventListener("input",e=>nd.name=e.target.value);
-    sheet.appendChild(nameIn);setTimeout(()=>nameIn.focus(),150);
-    const expIn=h("input",{type:"text",placeholder:"Expansión (ej: Avatar: The Last Airbender)",value:nd.expansion||"",style:"margin-bottom:16px"});
-    expIn.addEventListener("input",e=>nd.expansion=e.target.value);
-    sheet.appendChild(expIn);
-    const btnRow=h("div",{style:"display:flex;gap:8px"});
-    btnRow.appendChild(h("button",{class:"btn",style:"flex:1;padding:10px",onclick:()=>{S.newDeckStep=0;renderSheet();}},"‹ Atrás"));
-    btnRow.appendChild(h("button",{class:"btn btn-gold",style:"flex:2;padding:10px",onclick:()=>{
-      if(!nameIn.value.trim()){toast("Escribe un nombre para el deck");return;}
-      nd.name=nameIn.value.trim();nd.expansion=expIn.value.trim();
-      S.newDeckStep=2;renderSheet();
-    }},"Siguiente ›"));
-    sheet.appendChild(btnRow);
+    const nameIn=h("input",{type:"text",placeholder:"Nombre del deck...",value:nd.name||nd.commanderName||"",style:"margin-bottom:10px"});
+    nameIn.addEventListener("input",e=>nd.name=e.target.value);sheet.appendChild(nameIn);setTimeout(()=>nameIn.focus(),150);
+    const expIn=h("input",{type:"text",placeholder:"Expansión del set...",value:nd.expansion||"",style:"margin-bottom:16px"});
+    expIn.addEventListener("input",e=>nd.expansion=e.target.value);sheet.appendChild(expIn);
+    const br=h("div",{style:"display:flex;gap:8px"});
+    br.appendChild(h("button",{class:"btn",style:"flex:1;padding:10px",onclick:()=>{S.newDeckStep=0;S.addResults=[];render();}},"‹ Atrás"));
+    br.appendChild(h("button",{class:"btn btn-gold",style:"flex:2;padding:10px",onclick:()=>{if(!nameIn.value.trim()){toast("Escribe un nombre");return;}nd.name=nameIn.value.trim();nd.expansion=expIn.value.trim();S.newDeckStep=2;render();}},"Siguiente ›"));
+    sheet.appendChild(br);
   }
-
   else if(S.newDeckStep===2){
-    // Step 2: confirm & create
     sheet.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:14px"},"PASO 3 — Confirmar"));
-    const preview=h("div",{style:"background:var(--surface2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:16px"});
-    if(nd.commanderImg){
-      const ci=document.createElement("img");ci.src=nd.commanderImg;ci.style.cssText="width:100%;max-height:140px;object-fit:cover;object-position:top;display:block;";
-      preview.appendChild(ci);
-    }
+    const prev=h("div",{style:"background:var(--surface2);border:1px solid var(--border2);border-radius:12px;overflow:hidden;margin-bottom:16px"});
+    if(nd.commanderImg){const ci=document.createElement("img");ci.src=nd.commanderImg;ci.style.cssText="width:100%;max-height:130px;object-fit:cover;object-position:top;display:block;";prev.appendChild(ci);}
     const pi=h("div",{style:"padding:12px"});
-    pi.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:15px;color:var(--gold-light);margin-bottom:4px"},nd.name));
-    pi.appendChild(h("div",{style:"font-size:12px;color:var(--text-dim);margin-bottom:6px"},nd.expansion||"Sin expansión"));
-    if(nd.colors.length)pi.appendChild(manaRow(nd.colors));
-    preview.appendChild(pi);
-    sheet.appendChild(preview);
-    const btnRow=h("div",{style:"display:flex;gap:8px"});
-    btnRow.appendChild(h("button",{class:"btn",style:"flex:1;padding:10px",onclick:()=>{S.newDeckStep=1;renderSheet();}},"‹ Atrás"));
-    btnRow.appendChild(h("button",{class:"btn btn-gold",style:"flex:2;padding:10px",onclick:()=>{
-      const newDeck={
-        id:"deck-"+Date.now(),
-        name:nd.name,expansion:nd.expansion||"Sin expansión",
-        colors:nd.colors,format:"Commander",bracket:2,
-        commanderSet:nd.commanderSet,commanderCn:nd.commanderCn,
-        cards:[{id:"cmd-"+Date.now(),name:nd.commanderName,set:nd.commanderSet,cn:nd.commanderCn,cat:"Commander",status:"need",qty:1}]
-      };
-      S.decks.push(newDeck);
-      S.activeDeck=S.decks.length-1;
-      S.sheet=null;S.newDeckStep=0;
-      S.view="deck";S.filter="all";S.catFilter="all";
-      save();toast("✦ Deck creado! Agrega tus cartas con +");render();
+    pi.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);margin-bottom:4px"},nd.name));
+    pi.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-bottom:6px"},nd.expansion||"Sin expansión"));
+    if(nd.colors.length)pi.appendChild(manaRow(nd.colors));prev.appendChild(pi);sheet.appendChild(prev);
+    const br=h("div",{style:"display:flex;gap:8px"});
+    br.appendChild(h("button",{class:"btn",style:"flex:1;padding:10px",onclick:()=>{S.newDeckStep=1;render();}},"‹ Atrás"));
+    br.appendChild(h("button",{class:"btn btn-gold",style:"flex:2;padding:10px",onclick:()=>{
+      const newDeck={id:"deck-"+Date.now(),name:nd.name,expansion:nd.expansion||"Sin expansión",colors:nd.colors,format:"Commander",bracket:2,commanderSet:nd.commanderSet,commanderCn:nd.commanderCn,wins:0,
+        cards:[{id:"cmd-"+Date.now(),name:nd.commanderName,set:nd.commanderSet,cn:nd.commanderCn,cat:"Commander",status:"need",qty:1}]};
+      S.decks.push(newDeck);S.activeDeck=S.decks.length-1;S.sheet=null;S.newDeckStep=0;
+      toast("✦ "+nd.name+" creado!");saveDeckData();S.view="deck";render();
     }},"✦ Crear Deck"));
-    sheet.appendChild(btnRow);
+    sheet.appendChild(br);
   }
-
-  sheet.appendChild(h("button",{class:"btn",style:"width:100%;padding:11px;margin-top:10px",onclick:closeSheet},"Cancelar"));
   ov.appendChild(sheet);
 }
 
-// ─── SCRYFALL ──────────────────────────────────────────────────────────────
-let searchTimer;
+// ── PRECON PICKER ──────────────────────────────────────────────────────────
+const PRECON_SETS=[
+  {code:"soc",name:"Secrets of Strixhaven"},
+  {code:"tla",name:"Avatar: TLA"},
+  {code:"fin",name:"Final Fantasy"},
+  {code:"tdm",name:"Tarkir: Dragonstorm"},
+  {code:"aed",name:"Aetherdrift"},
+  {code:"dsk",name:"Duskmourn"},
+  {code:"otj",name:"Thunder Junction"},
+  {code:"mkm",name:"Murders at Karlov"},
+  {code:"lci",name:"Lost Caverns of Ixalan"},
+  {code:"cmm",name:"Commander Masters"},
+  {code:"woe",name:"Wilds of Eldraine"},
+  {code:"mom",name:"March of the Machine"},
+  {code:"one",name:"Phyrexia: All Will Be One"},
+  {code:"bro",name:"The Brothers War"},
+  {code:"dmu",name:"Dominaria United"},
+  {code:"clb",name:"Commander Legends: Baldur's Gate"},
+  {code:"neo",name:"Kamigawa: Neon Dynasty"},
+  {code:"vow",name:"Innistrad: Crimson Vow"},
+  {code:"mid",name:"Innistrad: Midnight Hunt"},
+  {code:"afr",name:"D&D: Adventures in the Forgotten Realms"},
+  {code:"stx",name:"Strixhaven: School of Mages"},
+];
 
-// Partial render: only update the results area, keeping input focused
-function renderSearchResults(containerId, isCommander){
-  const container = document.getElementById(containerId);
-  if(!container) return;
-  container.innerHTML="";
+function buildPreconPicker(ov){
+  const sheet=h("div",{class:"sheet"});sheet.appendChild(sheetHandle());
+  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:13px;color:var(--gold-light);margin-bottom:14px;text-align:center;letter-spacing:.06em"},"🎴 Importar Precon"));
 
-  if(S.addLoading){
-    container.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em"},"✦ Buscando en Scryfall..."));
-    return;
+  // Search input
+  const si=h("input",{type:"search",placeholder:"Busca commander o nombre del precon...",value:S.preconQuery||"",style:"margin-bottom:12px"});
+  si.addEventListener("input",e=>{S.preconQuery=e.target.value;debouncePreconSearch(e.target.value);});
+  sheet.appendChild(si);setTimeout(()=>si.focus(),150);
+
+  // Set chips
+  const chips=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:14px;"});
+  PRECON_SETS.forEach(s=>{
+    chips.appendChild(h("button",{class:"pill",style:"font-size:10px;padding:4px 10px;",onclick:()=>{
+      S.preconQuery=s.name;si.value=s.name;debouncePreconSearch(s.name);
+    }},s.name));
+  });
+  sheet.appendChild(chips);
+
+  // Results
+  const rd=h("div",{id:"precon-search-results",style:"max-height:300px;overflow-y:auto;"});
+  if(S.preconLoading) rd.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;"},"✦ Buscando precons..."));
+  else if(S.preconResults.length) S.preconResults.forEach(deck=>rd.appendChild(buildPreconRow(deck)));
+  else rd.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},S.preconQuery?"Sin resultados":"Busca o elige un set arriba"));
+  sheet.appendChild(rd);
+  sheet.appendChild(h("button",{class:"btn",style:"width:100%;padding:12px;margin-top:12px",onclick:closeSheet},"Cancelar"));
+  ov.appendChild(sheet);
+}
+
+function buildPreconRow(deck){
+  const row=h("div",{style:"display:flex;gap:10px;align-items:center;padding:10px;background:var(--surface2);border:1px solid var(--border);border-radius:10px;margin-bottom:8px;cursor:pointer;"});
+  if(deck.imgUri){
+    const ci=document.createElement("img");ci.src=deck.imgUri;ci.alt=deck.commander;
+    ci.style.cssText="width:52px;height:52px;border-radius:6px;object-fit:cover;object-position:top;flex-shrink:0;";
+    row.appendChild(ci);
   }
+  const info=h("div",{style:"flex:1;min-width:0"});
+  info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--gold-light);margin-bottom:2px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis;"},deck.commander));
+  info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);margin-bottom:4px;"},deck.setName));
+  if(deck.colors&&deck.colors.length)info.appendChild(manaRow(deck.colors));
+  row.appendChild(info);
+  const importBtn=h("button",{class:"btn btn-gold",style:"padding:8px 12px;font-size:10px;flex-shrink:0;",onclick:(e)=>{e.stopPropagation();importPreconDeck(deck);}},"+");
+  row.appendChild(importBtn);
+  return row;
+}
 
-  if(!S.addResults.length && !S.addLoading){
-    if(S.addQuery && S.addQuery.length >= 2){
-      container.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px"},"Sin resultados para \""+S.addQuery+"\""));
+let preconTimer;
+
+// Map: set chip name → Scryfall set code for commander precon sets
+const PRECON_SET_MAP={
+  "Secrets of Strixhaven":"soc","Avatar: TLA":"tla","Final Fantasy":"fin",
+  "Tarkir: Dragonstorm":"tdm","Aetherdrift":"aed","Duskmourn":"dsk",
+  "Bloomburrow":"blb","Modern Horizons 3":"mh3","Thunder Junction":"otc",
+  "Fallout":"pip","Lost Caverns of Ixalan":"lcc","Wilds of Eldraine":"woc",
+  "Commander Masters":"cmm","March of the Machine":"moc",
+  "Phyrexia: All Will Be One":"onc","The Brothers' War":"brc",
+  "Dominaria United":"dmc","Streets of New Capenna":"ncc",
+  "Baldur's Gate":"clb","Neon Dynasty":"nec","Crimson Vow":"voc",
+  "Midnight Hunt":"mic","Forgotten Realms":"afc","Commander 2021":"c21",
+  "Zendikar Rising":"znc","Commander 2020":"c20","Commander 2019":"c19",
+};
+
+async function searchPreconsBySet(setCode){
+  const rd=document.getElementById("precon-search-results");
+  if(rd)rd.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-dim);font-family:Cinzel,serif;font-size:12px;">✦ Cargando commanders del set...</div>';
+  try{
+    // Get legendary creatures from this commander set (these are the face commanders)
+    const url=`https://api.scryfall.com/cards/search?q=set%3A${setCode}+is%3Alegendary+type%3Acreature&order=name&unique=cards`;
+    const r=await fetch(url,{headers:{"Accept":"application/json"}});
+    if(r.ok){
+      const d=await r.json();
+      S.preconResults=(d.data||[]).map(c=>({
+        id:c.id,commander:c.name,setCode:c.set,setName:c.set_name,
+        colors:c.color_identity||[],commanderSet:c.set,commanderCn:c.collector_number,
+        imgUri:c.image_uris?.art_crop||c.card_faces?.[0]?.image_uris?.art_crop,
+        scryfallCard:c
+      }));
+    } else S.preconResults=[];
+  }catch(e){console.error(e);S.preconResults=[];}
+  const rd2=document.getElementById("precon-search-results");
+  if(rd2){rd2.innerHTML="";if(S.preconResults.length)S.preconResults.forEach(d=>rd2.appendChild(buildPreconRow(d)));
+  else rd2.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},"Sin commanders en este set"));}
+}
+
+function debouncePreconSearch(q){
+  clearTimeout(preconTimer);
+  S.preconResults=[];
+  // Check if q matches a known set name
+  const setCode=PRECON_SET_MAP[q];
+  if(setCode){searchPreconsBySet(setCode);return;}
+  if(!q||q.length<2){S.preconLoading=false;const rd=document.getElementById("precon-search-results");if(rd)rd.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-faint);font-family:Cinzel,serif;font-size:12px;">Busca un commander o elige un set arriba</div>';return;}
+  const rd=document.getElementById("precon-search-results");
+  if(rd)rd.innerHTML='<div style="text-align:center;padding:20px;color:var(--text-dim);font-family:Cinzel,serif;font-size:12px;">✦ Buscando...</div>';
+  preconTimer=setTimeout(async()=>{
+    try{
+      // Search legendary creatures (commanders) by name across all sets
+      const url=`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}+is%3Alegendary+type%3Acreature&order=released&unique=cards`;
+      const r=await fetch(url,{headers:{"Accept":"application/json"}});
+      if(r.ok){
+        const d=await r.json();
+        S.preconResults=(d.data||[]).slice(0,20).map(c=>({
+          id:c.id,commander:c.name,setCode:c.set,setName:c.set_name,
+          colors:c.color_identity||[],commanderSet:c.set,commanderCn:c.collector_number,
+          imgUri:c.image_uris?.art_crop||c.card_faces?.[0]?.image_uris?.art_crop,
+          scryfallCard:c
+        }));
+      } else S.preconResults=[];
+    }catch(e){console.error(e);S.preconResults=[];}
+    const rd2=document.getElementById("precon-search-results");
+    if(rd2){rd2.innerHTML="";if(S.preconResults.length)S.preconResults.forEach(d=>rd2.appendChild(buildPreconRow(d)));
+    else rd2.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},"Sin resultados — intenta otro nombre"));}
+  },500);
+}
+
+async function importPreconDeck(deck){
+  toast("⏳ Importando deck completo de "+deck.commander+"...");
+  const btn=document.querySelector(".importing-btn");
+  let allCards=[];
+  try{
+    // Fetch all cards from this precon set
+    const setCode=deck.commanderSet;
+    let url=`https://api.scryfall.com/cards/search?q=set%3A${setCode}&order=collector_number&unique=cards`;
+    let hasMore=true;
+    while(hasMore){
+      const r=await fetch(url,{headers:{"Accept":"application/json"}});
+      if(!r.ok) break;
+      const d=await r.json();
+      allCards=allCards.concat(d.data||[]);
+      hasMore=d.has_more;
+      if(hasMore) url=d.next_page;
     }
+  }catch(e){console.error(e);}
+
+  // Build card list with categories
+  const cards=allCards.map((c,i)=>{
+    const isLand=c.type_line&&c.type_line.toLowerCase().includes("land");
+    const isCreature=c.type_line&&c.type_line.toLowerCase().includes("creature");
+    const isInstant=c.type_line&&c.type_line.toLowerCase().includes("instant");
+    const isSorcery=c.type_line&&c.type_line.toLowerCase().includes("sorcery");
+    const isEnchant=c.type_line&&c.type_line.toLowerCase().includes("enchantment");
+    const isArtifact=c.type_line&&c.type_line.toLowerCase().includes("artifact");
+    const isBasicLand=c.type_line&&c.type_line.toLowerCase().includes("basic land");
+    const isCommander=c.name===deck.commander;
+    let cat="Sin categoría";
+    if(isCommander) cat="Commander";
+    else if(isBasicLand) cat="Tierras Básicas";
+    else if(isLand) cat="Tierras";
+    else if(isCreature) cat="Criaturas";
+    else if(isInstant) cat="Instantáneos";
+    else if(isSorcery) cat="Sorcerías";
+    else if(isEnchant) cat="Encantamientos";
+    else if(isArtifact) cat="Artefactos";
+    return {
+      id:"pc-"+Date.now()+"-"+i,
+      name:c.name,set:c.set,cn:c.collector_number,
+      cat,status:"need",qty:1,
+      scryfallId:c.id
+    };
+  });
+
+  // Put commander first
+  cards.sort((a,b)=>a.cat==="Commander"?-1:b.cat==="Commander"?1:0);
+
+  const newDeck={
+    id:"precon-"+Date.now(),
+    name:deck.commander,expansion:deck.setName,
+    colors:deck.colors,format:"Commander",bracket:2,
+    commanderSet:deck.commanderSet,commanderCn:deck.commanderCn,wins:0,
+    cards: cards.length>0 ? cards : [{id:"cmd-"+Date.now(),name:deck.commander,set:deck.commanderSet,cn:deck.commanderCn,cat:"Commander",status:"need",qty:1}]
+  };
+  S.decks.push(newDeck);S.activeDeck=S.decks.length-1;S.sheet=null;
+  toast("✦ "+deck.commander+" importado! "+cards.length+" cartas cargadas.");
+  saveDeckData();S.view="deck";render();
+}
+
+// ── ADD CARD SHEET ─────────────────────────────────────────────────────────
+function buildAddCardSheet(ov){
+  const sheet=h("div",{class:"sheet"});sheet.appendChild(sheetHandle());
+  sheet.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:14px;color:var(--gold-light);margin-bottom:14px;letter-spacing:.06em"},"✦ Agregar Carta"));
+  const si=h("input",{type:"search",placeholder:"Busca cualquier carta de Magic...",value:S.addQuery,style:"margin-bottom:12px"});
+  si.addEventListener("input",e=>{S.addQuery=e.target.value;debounceCardSearch(e.target.value,"add-card-results");});
+  sheet.appendChild(si);setTimeout(()=>si.focus(),150);
+  // Category + qty
+  const optRow=h("div",{style:"display:flex;gap:8px;margin-bottom:14px;align-items:center"});
+  const catSel=document.createElement("select");catSel.style.flex="1";catSel.id="cat-select-add";
+  ALL_CATS.forEach(c=>{const o=document.createElement("option");o.value=c;o.textContent=`${CAT_ICONS[c]||"○"} ${c}`;if(c===S.addCat)o.selected=true;catSel.appendChild(o);});
+  catSel.onchange=e=>{S.addCat=e.target.value;S.lastAutoCat=null;};optRow.appendChild(catSel);
+  const stepper=h("div",{style:"display:flex;align-items:center;gap:8px;background:var(--surface2);border:1px solid var(--border2);border-radius:8px;padding:4px 10px"});
+  stepper.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;font-size:20px;color:var(--gold);line-height:1;padding:0",onclick:()=>{S.addQty=Math.max(1,S.addQty-1);const q=document.getElementById("add-qty");if(q)q.textContent=S.addQty;}},"−"));
+  stepper.appendChild(h("span",{id:"add-qty",style:"font-family:'Cinzel',serif;font-size:14px;min-width:20px;text-align:center;color:var(--gold-light)"},String(S.addQty)));
+  stepper.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;font-size:20px;color:var(--gold);line-height:1;padding:0",onclick:()=>{S.addQty=Math.min(20,S.addQty+1);const q=document.getElementById("add-qty");if(q)q.textContent=S.addQty;}},"+")); 
+  optRow.appendChild(stepper);sheet.appendChild(optRow);
+  const rd=h("div",{id:"add-card-results",style:"margin-bottom:4px"});
+  rd.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Escribe el nombre de cualquier carta de Magic"));
+  sheet.appendChild(rd);
+  if(S.addResults.length||S.addSelected) renderCardResults("add-card-results");
+  sheet.appendChild(h("button",{class:"btn",style:"width:100%;padding:12px;margin-top:4px",onclick:closeSheet},"Cancelar"));
+  ov.appendChild(sheet);
+}
+
+// ═══════════════════════════════════════════════════════════════════════════
+// SEARCH FUNCTIONS (no full re-render)
+// ═══════════════════════════════════════════════════════════════════════════
+let cardSearchTimer,cmdSearchTimer;
+
+function debounceCardSearch(q,containerId){
+  clearTimeout(cardSearchTimer);S.addResults=[];S.addSelected=null;
+  const c=document.getElementById(containerId);
+  if(!q||q.length<2){
+    if(c)c.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-faint);font-family:Cinzel,serif;font-size:12px;">Escribe el nombre de cualquier carta de Magic</div>';
     return;
   }
+  if(c)c.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-dim);font-family:Cinzel,serif;font-size:12px;">✦ Buscando en Scryfall...</div>';
+  cardSearchTimer=setTimeout(async()=>{
+    try{
+      // Search by name — works in browser via CORS
+      const url=`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&unique=cards`;
+      const r=await fetch(url,{headers:{"Accept":"application/json"}});
+      if(r.ok){const d=await r.json();S.addResults=d.data||[];}
+      else if(r.status===404){S.addResults=[];}
+      else{S.addResults=[];}
+    }catch(e){console.error("Search error:",e);S.addResults=[];}
+    renderCardResults(containerId);
+  },500);
+}
 
+function renderCardResults(containerId){
+  const c=document.getElementById(containerId);if(!c)return;c.innerHTML="";
   if(S.addSelected){
-    // Show selected card confirmation
-    const sel=S.addSelected;
-    const imgUri=sel.image_uris?.normal||sel.card_faces?.[0]?.image_uris?.normal;
+    const sel=S.addSelected;const imgUri=sel.image_uris?.normal||sel.card_faces?.[0]?.image_uris?.normal;
     const conf=h("div",{style:"display:flex;gap:12px;align-items:flex-start;background:var(--surface2);border:1px solid var(--border2);border-radius:12px;padding:12px;margin-bottom:8px"});
-    if(imgUri){const ci=document.createElement("img");ci.src=imgUri;ci.alt=sel.name;ci.style.cssText="width:80px;border-radius:8px;flex-shrink:0;box-shadow:0 4px 12px rgba(0,0,0,0.6)";conf.appendChild(ci);}
+    if(imgUri){const ci=document.createElement("img");ci.src=imgUri;ci.style.cssText="width:75px;border-radius:8px;flex-shrink:0;";conf.appendChild(ci);}
     const info=h("div",{style:"flex:1;min-width:0"});
-    info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:4px"},sel.name));
-    info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-bottom:2px"},sel.type_line||""));
-    info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-bottom:10px"},(sel.set||"").toUpperCase()+" · "+(sel.rarity||"")));
-    if(isCommander){
-      info.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:10px",onclick:()=>{
-        const nd=S.newDeck;
-        nd.commanderName=sel.name;nd.commanderSet=sel.set;nd.commanderCn=sel.collector_number;
-        nd.commanderImg=sel.image_uris?.normal||sel.card_faces?.[0]?.image_uris?.normal;
-        const colorMap={W:"W",U:"U",B:"B",R:"R",G:"G"};
-        nd.colors=(sel.color_identity||[]).map(c=>colorMap[c]||c);
-        S.newDeckStep=1;S.addResults=[];S.addSelected=null;renderSheet();
-      }},"✦ Elegir este Commander"));
-    } else {
-      info.appendChild(h("button",{class:"btn btn-success",style:"width:100%;padding:10px",onclick:()=>doAddCard(sel)},"✓ Agregar al deck"));
-    }
-    info.appendChild(h("button",{class:"btn",style:"width:100%;margin-top:6px;padding:8px",onclick:()=>{S.addSelected=null;renderSearchResults(containerId,isCommander);}},"Elegir otra"));
-    conf.appendChild(info);container.appendChild(conf);
-    return;
+    info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:12px;color:var(--gold-light);margin-bottom:3px"},sel.name));
+    info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);margin-bottom:2px"},sel.type_line||""));
+    info.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);margin-bottom:8px"},(sel.set||"").toUpperCase()+" · "+(sel.rarity||"")));
+    info.appendChild(h("button",{class:"btn btn-success",style:"width:100%;padding:9px;margin-bottom:6px",onclick:()=>doAddCard(sel)},"✓ Agregar al deck"));
+    info.appendChild(h("button",{class:"btn",style:"width:100%;padding:7px",onclick:()=>{S.addSelected=null;renderCardResults(containerId);}},"Elegir otra"));
+    conf.appendChild(info);c.appendChild(conf);return;
   }
-
-  const deck = S.view==="deck" ? S.decks[S.activeDeck] : null;
+  if(!S.addResults.length){c.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},"Sin resultados"));return;}
+  const deck=S.decks[S.activeDeck];
   const grid=h("div",{class:"search-grid",style:"margin-bottom:8px"});
   S.addResults.forEach(card=>{
     const imgUri=card.image_uris?.normal||card.card_faces?.[0]?.image_uris?.normal;
-    const already=deck && deck.cards.some(c=>c.name===card.name);
+    const already=deck&&deck.cards.some(x=>x.name===card.name);
     const tile=h("div",{style:"position:relative;cursor:pointer;border-radius:8px;overflow:hidden"});
     if(imgUri){const ci=document.createElement("img");ci.src=imgUri;ci.alt=card.name;ci.style.cssText="width:100%;display:block;border-radius:8px;";tile.appendChild(ci);}
     else tile.appendChild(h("div",{class:"card-fallback"},card.name));
     if(already)tile.appendChild(h("div",{style:"position:absolute;top:3px;right:3px;font-size:8px;background:rgba(0,0,0,.85);border:1px solid var(--border2);border-radius:3px;padding:1px 4px;color:var(--gold)"},"✓"));
     tile.onclick=()=>{
       S.addSelected=card;
-      // Auto-detect and pre-select category
-      if(S.addCat==="Sin categoría"||S.addCat===S.lastAutoCat){
-        S.addCat=autoDetectCat(card.type_line||"");
-        S.lastAutoCat=S.addCat;
-        // Update the select element if visible
-        const sel=document.getElementById("cat-select-add");
-        if(sel)sel.value=S.addCat;
-      }
-      renderSearchResults(containerId,isCommander);
+      if(S.addCat==="Sin categoría"||S.addCat===S.lastAutoCat){S.addCat=autoDetectCat(card.type_line||"");S.lastAutoCat=S.addCat;const sel=document.getElementById("cat-select-add");if(sel)sel.value=S.addCat;}
+      renderCardResults(containerId);
     };
     grid.appendChild(tile);
   });
-  container.appendChild(grid);
-}
-
-function debounceSearch(q, containerId){
-  clearTimeout(searchTimer);
-  S.addResults=[];S.addSelected=null;
-  if(!q||q.length<2){
-    S.addLoading=false;
-    const c=document.getElementById(containerId);
-    if(c)c.innerHTML="";
-    return;
-  }
-  S.addLoading=true;
-  renderSearchResults(containerId, false);
-  searchTimer=setTimeout(async()=>{
-    try{const r=await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}&order=name&unique=cards`);
-      if(r.ok){const d=await r.json();S.addResults=d.data||[];}else S.addResults=[];}
-    catch(e){S.addResults=[];}
-    S.addLoading=false;
-    renderSearchResults(containerId, false);
-  },450);
-}
-
-function debounceCommanderSearch(q, containerId){
-  clearTimeout(searchTimer);
-  S.addResults=[];S.addSelected=null;
-  if(!q||q.length<2){
-    S.addLoading=false;
-    const c=document.getElementById(containerId);
-    if(c)c.innerHTML="";
-    return;
-  }
-  S.addLoading=true;
-  renderSearchResults(containerId, true);
-  searchTimer=setTimeout(async()=>{
-    try{const r=await fetch(`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}+is:legendary+type:creature&order=name&unique=cards`);
-      if(r.ok){const d=await r.json();S.addResults=d.data||[];}else S.addResults=[];}
-    catch(e){S.addResults=[];}
-    S.addLoading=false;
-    renderSearchResults(containerId, true);
-  },450);
+  c.appendChild(grid);
 }
 
 function doAddCard(scryfallCard){
   const deck=S.decks[S.activeDeck];
   const cat=S.addCat==="Sin categoría"?autoDetectCat(scryfallCard.type_line||""):S.addCat;
-  const newCard={id:"c-"+Date.now(),name:scryfallCard.name,set:scryfallCard.set,
-    cn:scryfallCard.collector_number,cat,status:"need",qty:S.addQty};
-  // If Commander: put at position 0, set as deck commander image if none
-  if(cat==="Commander"){
-    deck.cards.unshift(newCard);
-    if(!deck.commanderSet||!deck.commanderCn){
-      deck.commanderSet=scryfallCard.set;
-      deck.commanderCn=scryfallCard.collector_number;
-    }
-  } else {
-    deck.cards.push(newCard);
-  }
+  const newCard={id:"c-"+Date.now(),name:scryfallCard.name,set:scryfallCard.set,cn:scryfallCard.collector_number,cat,status:"need",qty:S.addQty};
+  if(cat==="Commander"){deck.cards.unshift(newCard);if(!deck.commanderSet){deck.commanderSet=scryfallCard.set;deck.commanderCn=scryfallCard.collector_number;}}
+  else deck.cards.push(newCard);
   S.sheet=null;S.addQuery="";S.addResults=[];S.addSelected=null;S.addQty=1;
-  toast("✦ "+scryfallCard.name+" agregada como "+cat);save();render();
+  toast("✦ "+scryfallCard.name+" agregada como "+cat);saveDeckData();render();
 }
 
-// ─── DECK MENU ─────────────────────────────────────────────────────────────
-function showDeckMenu(deckIdx){
-  const existing=document.getElementById("deck-action-menu");
-  if(existing){existing.remove();return;}
-  const deck=S.decks[deckIdx];
+function debounceCommanderSearch(q,containerId){
+  clearTimeout(cmdSearchTimer);S.addResults=[];
+  const c=document.getElementById(containerId);
+  if(!q||q.length<2){
+    if(c)c.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-faint);font-family:Cinzel,serif;font-size:12px;">Escribe el nombre del commander legendario</div>';
+    return;
+  }
+  if(c)c.innerHTML='<div style="text-align:center;padding:16px;color:var(--text-dim);font-family:Cinzel,serif;font-size:12px;">✦ Buscando commanders...</div>';
+  cmdSearchTimer=setTimeout(async()=>{
+    try{
+      const url=`https://api.scryfall.com/cards/search?q=${encodeURIComponent(q)}+is%3Alegendary+type%3Acreature&order=name&unique=cards`;
+      const r=await fetch(url,{headers:{"Accept":"application/json"}});
+      if(r.ok){const d=await r.json();S.addResults=d.data||[];}else S.addResults=[];
+    }catch(e){console.error("Cmd search error:",e);S.addResults=[];}
+    renderCmdResults(containerId);
+  },500);
+}
 
-  const overlay=h("div",{id:"deck-action-menu",style:`
-    position:fixed;inset:0;z-index:300;
-    background:rgba(0,0,0,0.65);
-    backdrop-filter:blur(4px);-webkit-backdrop-filter:blur(4px);
-    display:flex;align-items:flex-end;justify-content:center;
-  `});
-  overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
-
-  const panel=h("div",{style:`
-    background:linear-gradient(180deg,#1a1020 0%,#120c18 100%);
-    border:1px solid var(--border2);border-radius:20px 20px 0 0;
-    width:100%;max-width:420px;
-    padding:16px 16px calc(20px + var(--safe-bottom));
-  `});
-
-  panel.appendChild(h("div",{style:"display:flex;justify-content:center;margin-bottom:12px"},
-    h("div",{style:"width:32px;height:3px;border-radius:2px;background:var(--border2)"})));
-
-  panel.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);text-align:center;margin-bottom:4px;letter-spacing:.06em"},deck.name));
-  panel.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);text-align:center;margin-bottom:16px"},deck.expansion));
-
-  // Open deck button
-  panel.appendChild(h("button",{style:`width:100%;padding:13px;margin-bottom:10px;
-    border-radius:10px;border:1px solid var(--border2);cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:var(--gold-dim);color:var(--gold-light);`,
-    onclick:()=>{S.activeDeck=deckIdx;S.view="deck";S.filter="all";S.catFilter="all";S.searchDeck="";overlay.remove();render();}},"✦  Abrir deck"));
-
-  // Delete button
-  const delBtn=h("button",{style:`width:100%;padding:13px;margin-bottom:10px;
-    border-radius:10px;border:1px solid var(--danger-light);cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:var(--danger-bg);color:#ff8888;`},"🗑  Eliminar deck");
-  delBtn.onclick=()=>{
-    delBtn.textContent="¿Seguro? Toca de nuevo para confirmar";
-    delBtn.style.background="rgba(180,20,20,0.6)";
-    delBtn.style.borderColor="#ff4444";
-    delBtn.onclick=()=>{
-      S.decks.splice(deckIdx,1);
-      if(S.activeDeck>=S.decks.length)S.activeDeck=Math.max(0,S.decks.length-1);
-      toast("🗑 Deck eliminado");save();overlay.remove();render();
+function renderCmdResults(containerId){
+  const c=document.getElementById(containerId);if(!c)return;c.innerHTML="";
+  if(!S.addResults.length){c.appendChild(h("div",{style:"text-align:center;padding:16px;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},S.addQuery?"Sin resultados":"Escribe el nombre del commander"));return;}
+  const grid=h("div",{class:"search-grid"});
+  S.addResults.forEach(card=>{
+    const imgUri=card.image_uris?.normal||card.card_faces?.[0]?.image_uris?.normal;
+    const tile=h("div",{style:"position:relative;cursor:pointer;border-radius:8px;overflow:hidden;"});
+    if(imgUri){const ci=document.createElement("img");ci.src=imgUri;ci.alt=card.name;ci.style.cssText="width:100%;display:block;border-radius:8px;";tile.appendChild(ci);}
+    else tile.appendChild(h("div",{class:"card-fallback"},card.name));
+    tile.onclick=()=>{
+      const nd=S.newDeck;nd.commanderName=card.name;nd.commanderSet=card.set;nd.commanderCn=card.collector_number;
+      nd.commanderImg=imgUri;nd.colors=(card.color_identity||[]);nd.name=card.name;
+      S.addQuery="";S.addResults=[];S.newDeckStep=1;render();
     };
-  };
-  panel.appendChild(delBtn);
-
-  panel.appendChild(h("button",{style:`width:100%;padding:12px;
-    border-radius:10px;border:1px solid var(--border);cursor:pointer;
-    font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em;
-    background:transparent;color:var(--text-dim);`,
-    onclick:()=>overlay.remove()},"Cancelar"));
-
-  overlay.appendChild(panel);
-  document.body.appendChild(overlay);
+    grid.appendChild(tile);
+  });
+  c.appendChild(grid);
 }
 
-// ─── CARD PREVIEW (tap = enlarge + price) ──────────────────────────────────
-async function showCardPreview(card){
-  const existing=document.getElementById("card-preview-modal");
-  if(existing){existing.remove();return;}
-
-  const overlay=h("div",{id:"card-preview-modal",style:`
-    position:fixed;inset:0;z-index:400;
-    background:rgba(0,0,0,0.85);
-    backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
-    display:flex;flex-direction:column;align-items:center;justify-content:center;
-    padding:20px;
-  `});
-  overlay.onclick=e=>{if(e.target===overlay)overlay.remove();};
-
-  // Card image large
-  const img=document.createElement("img");
-  img.src=scryImg(card.set,card.cn);
-  img.alt=card.name;
-  img.style.cssText="max-width:280px;width:100%;border-radius:16px;box-shadow:0 20px 60px rgba(0,0,0,0.8);margin-bottom:16px;";
-  img.onerror=()=>{img.src=`https://api.scryfall.com/cards/named?exact=${encodeURIComponent(card.name)}&format=image&version=normal`;};
-  overlay.appendChild(img);
-
-  // Price area
-  const priceBox=h("div",{style:`
-    background:rgba(14,8,22,0.9);border:1px solid var(--border2);
-    border-radius:12px;padding:14px 20px;width:100%;max-width:280px;
-    text-align:center;
-  `});
-  priceBox.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:8px;letter-spacing:.06em"},card.name));
-  priceBox.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"PRECIO EN TIEMPO REAL"));
-
-  const priceRow=h("div",{style:"display:flex;justify-content:center;gap:20px;align-items:center"});
-  const usdEl=h("div",{style:"text-align:center"});
-  usdEl.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);font-family:'Cinzel',serif;margin-bottom:2px"},"USD"));
-  const usdPrice=h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:22px;color:var(--gold)"},"...");
-  usdEl.appendChild(usdPrice);
-
-  const eurEl=h("div",{style:"text-align:center"});
-  eurEl.appendChild(h("div",{style:"font-size:10px;color:var(--text-dim);font-family:'Cinzel',serif;margin-bottom:2px"},"EUR"));
-  const eurPrice=h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:22px;color:var(--gold)"},"...");
-  eurEl.appendChild(eurPrice);
-
-  priceRow.append(usdEl,eurEl);
-  priceBox.appendChild(priceRow);
-
-  const updatedEl=h("div",{style:"font-size:9px;color:var(--text-faint);margin-top:8px;font-family:'Cinzel',serif"},"Actualizando...");
-  priceBox.appendChild(updatedEl);
-  overlay.appendChild(priceBox);
-
-  // Close hint
-  overlay.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:10px;color:var(--text-faint);margin-top:12px;letter-spacing:.1em"},"Toca fuera para cerrar"));
-
-  document.body.appendChild(overlay);
-
-  // Fetch price from Scryfall
-  try{
-    const r=await fetch(`https://api.scryfall.com/cards/${card.set}/${card.cn}`);
-    if(r.ok){
-      const d=await r.json();
-      const usd=d.prices?.usd||d.prices?.usd_foil||null;
-      const eur=d.prices?.eur||d.prices?.eur_foil||null;
-      usdPrice.textContent=usd?`$${usd}`:"N/A";
-      eurPrice.textContent=eur?`€${eur}`:"N/A";
-      const now=new Date();
-      updatedEl.textContent=`Actualizado: ${now.toLocaleTimeString("es-GT",{hour:"2-digit",minute:"2-digit"})}`;
-    }
-  }catch(e){
-    usdPrice.textContent="—";eurPrice.textContent="—";
-    updatedEl.textContent="Sin conexión";
-  }
-}
-
-// ─── PROFILE VIEW ──────────────────────────────────────────────────────────
-function renderProfile(){
-  const el=document.getElementById("view-profile");
-  el.innerHTML="";
-  el.appendChild(buildTopBar("Perfil","Mi cuenta"));
-
-  const body=h("div",{style:"padding:16px"});
-
-  if(!S.currentUser){
-    // Login / Register
-    body.appendChild(h("div",{class:"ornament"},"✦ ACCEDER ✦"));
-    const card=h("div",{class:"mtg-frame"});
-    const inner=h("div",{class:"mtg-frame-inner"});
-    inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"USUARIO"));
-    const userIn=h("input",{type:"text",placeholder:"Tu nombre de usuario...",style:"margin-bottom:10px"});
-    inner.appendChild(userIn);
-    inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);letter-spacing:.12em;margin-bottom:10px"},"CONTRASEÑA"));
-    const passIn=h("input",{type:"password",placeholder:"Tu contraseña...",style:"margin-bottom:16px"});
-    inner.appendChild(passIn);
-    const btnRow=h("div",{style:"display:flex;gap:8px"});
-    // Login
-    btnRow.appendChild(h("button",{class:"btn btn-gold",style:"flex:1;padding:11px",onclick:async()=>{
-      const u=userIn.value.trim().toLowerCase();const p=passIn.value;
-      if(!u||!p){toast("Completa usuario y contraseña");return;}
-      const ph=hashPass(p);
-      // Check cloud profile
-      const cloudProf=await loadUserProfile(u);
-      if(cloudProf&&cloudProf.passwordHash!==ph){toast("Contraseña incorrecta");return;}
-      const user={username:u,passwordHash:ph};
-      S.currentUser=user;saveProfile(user);
-      // Load their cloud decks
-      const cloudDecks=await loadUserDecks(u);
-      if(cloudDecks&&cloudDecks.length){
-        S.decks=cloudDecks;save();
-        toast("✓ Bienvenido "+u+"! Decks sincronizados.");
-      } else {
-        // Save current decks to cloud
-        await saveUserDecks(u,S.decks);
-        await saveUserProfile(u,{username:u,passwordHash:ph,createdAt:Date.now()});
-        toast("✓ Cuenta creada para "+u+"!");
-      }
-      S.view="home";render();
-    }},"✦ Entrar / Crear"));
-    inner.appendChild(btnRow);
-    inner.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:12px;text-align:center;line-height:1.5"},"Si es tu primera vez, se crea la cuenta automáticamente. Tus decks se sincronizarán en la nube."));
-    card.appendChild(inner);body.appendChild(card);
-  } else {
-    // Logged in
-    body.appendChild(h("div",{class:"ornament"},"✦ MI PERFIL ✦"));
-    const card=h("div",{class:"mtg-frame",style:"margin-bottom:16px"});
-    const inner=h("div",{class:"mtg-frame-inner"});
-    const avatarDiv=h("div",{style:"width:60px;height:60px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--gold-dark));display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:22px;color:var(--gold-light);margin:0 auto 12px;border:2px solid var(--gold)"});
-    avatarDiv.textContent=S.currentUser.username[0].toUpperCase();
-    inner.appendChild(avatarDiv);
-    inner.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:18px;color:var(--gold-light);text-align:center;margin-bottom:4px"},S.currentUser.username));
-    const{tot,hav,pct}=deckStats({cards:S.decks.flatMap(d=>d.cards)});
-    inner.appendChild(h("div",{style:"text-align:center;font-size:12px;color:var(--text-dim);margin-bottom:14px"},S.decks.length+" decks · "+hav+"/"+tot+" cartas ("+pct+"%)"));
-    // Sync status
-    const syncBtn=h("button",{class:"btn btn-gold",style:"width:100%;padding:11px;margin-bottom:10px",onclick:async()=>{
-      syncBtn.textContent="Sincronizando...";
-      await saveUserDecks(S.currentUser.username,S.decks);
-      toast("✓ Decks sincronizados en la nube");syncBtn.textContent="☁ Sincronizar decks ahora";
-    }},"☁ Sincronizar decks ahora");
-    inner.appendChild(syncBtn);
-    inner.appendChild(h("button",{class:"btn",style:"width:100%;padding:11px",onclick:()=>{
-      S.currentUser=null;saveProfile(null);toast("Sesión cerrada");S.view="home";render();
-    }},"Cerrar sesión"));
-    card.appendChild(inner);body.appendChild(card);
-  }
-  el.appendChild(body);
-}
-
-// ─── FRIENDS VIEW ──────────────────────────────────────────────────────────
+// ═══════════════════════════════════════════════════════════════════════════
+// FRIENDS
+// ═══════════════════════════════════════════════════════════════════════════
 function renderFriends(){
-  const el=document.getElementById("view-friends");
-  el.innerHTML="";
-  el.appendChild(buildTopBar("Amigos","Ver decks de otros jugadores"));
+  const el=getViewEl("friends");el.innerHTML="";
+  el.appendChild(buildTopBarEl("Amigos","Ver decks de otros jugadores"));
   const body=h("div",{style:"padding:16px"});
-
   if(!S.currentUser){
-    body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em"},"Crea un perfil para ver los decks de tus amigos"));
-    body.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:12px;margin-top:16px",onclick:()=>{S.view="profile";render();}},"✦ Crear perfil"));
+    body.appendChild(h("div",{style:"text-align:center;padding:40px 0;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.1em"},"Inicia sesión para ver los decks de tus amigos"));
     el.appendChild(body);return;
   }
-
   body.appendChild(h("div",{class:"ornament"},"✦ BUSCAR AMIGO ✦"));
-  const searchRow=h("div",{style:"display:flex;gap:8px;margin-bottom:16px"});
-  const si=h("input",{type:"text",placeholder:"Usuario de tu amigo...",value:S.friendSearch||""});
-  si.addEventListener("input",e=>S.friendSearch=e.target.value);
-  const searchBtn=h("button",{class:"btn btn-gold",style:"padding:10px 16px;white-space:nowrap",onclick:()=>searchFriend(si.value.trim().toLowerCase())},"Buscar");
-  searchRow.append(si,searchBtn);
-  body.appendChild(searchRow);
-
-  // Friends list
-  const friends=loadFriends();
-  if(friends.length){
+  const sr=h("div",{style:"display:flex;gap:8px;margin-bottom:20px"});
+  const si=h("input",{type:"text",placeholder:"Nombre de usuario de tu amigo...",value:S.friendQuery||""});
+  si.addEventListener("input",e=>S.friendQuery=e.target.value);
+  si.addEventListener("keydown",e=>{if(e.key==="Enter")searchFriend(S.friendQuery.trim().toLowerCase());});
+  const sb=h("button",{class:"btn btn-gold",style:"padding:10px 14px;white-space:nowrap;flex-shrink:0",onclick:()=>searchFriend(S.friendQuery.trim().toLowerCase())},"Buscar");
+  sr.append(si,sb);body.appendChild(sr);
+  if(S.friendsList&&S.friendsList.length){
     body.appendChild(h("div",{class:"ornament"},"✦ MIS AMIGOS ✦"));
-    friends.forEach(f=>{
-      const fc=h("div",{style:"background:var(--surface);border:1px solid var(--border2);border-radius:12px;padding:14px;margin-bottom:10px;display:flex;align-items:center;gap:12px;cursor:pointer;",
-        onclick:()=>viewFriendDecks(f.username)});
-      const av=h("div",{style:"width:42px;height:42px;border-radius:50%;background:linear-gradient(135deg,#1a4a8a,#3a8a52);display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:16px;color:var(--gold-light);flex-shrink:0;"});
-      av.textContent=f.username[0].toUpperCase();
+    S.friendsList.forEach(f=>{
+      const fc=h("div",{class:"friend-card",onclick:()=>viewFriendDecks(f)});
+      const av=h("div",{class:"avatar-circle",style:"background:linear-gradient(135deg,#1a4a8a,#3a8a52)"});av.textContent=f[0].toUpperCase();
       const info=h("div",{style:"flex:1;min-width:0"});
-      info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:2px"},f.username));
+      info.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:2px"},f));
       info.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim)"},"Toca para ver sus decks"));
-      const removeBtn=h("button",{style:"background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:18px;",
-        onclick:(e)=>{e.stopPropagation();const fl=loadFriends().filter(x=>x.username!==f.username);saveFriends(fl);renderFriends();}
+      const rm=h("button",{style:"background:none;border:none;color:var(--text-faint);cursor:pointer;font-size:20px;",onclick:(e)=>{e.stopPropagation();S.friendsList=S.friendsList.filter(x=>x!==f);saveFriends();renderFriends();}
       },"×");
-      fc.append(av,info,removeBtn);
-      body.appendChild(fc);
+      fc.append(av,info,rm);body.appendChild(fc);
     });
   } else {
     body.appendChild(h("div",{style:"text-align:center;padding:20px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Busca el usuario de un amigo para ver sus decks"));
@@ -1684,196 +1472,70 @@ async function searchFriend(username){
   if(!username){toast("Escribe un nombre de usuario");return;}
   if(username===S.currentUser?.username){toast("Ese eres tú mismo");return;}
   toast("Buscando "+username+"...");
-  const prof=await loadUserProfile(username);
-  if(!prof){toast("Usuario '"+username+"' no encontrado");return;}
-  // Add to friends
-  const friends=loadFriends();
-  if(!friends.find(f=>f.username===username)){
-    friends.push({username});saveFriends(friends);
-  }
-  toast("✓ "+username+" agregado a amigos");
-  renderFriends();
+  const decks=await cloudLoadDecks(username);
+  if(!decks){toast("Usuario '"+username+"' no encontrado o sin decks públicos");return;}
+  if(!S.friendsList.includes(username)){S.friendsList.push(username);saveFriends();}
+  toast("✓ "+username+" agregado a amigos");renderFriends();
 }
 
 async function viewFriendDecks(username){
   toast("Cargando decks de "+username+"...");
-  const decks=await loadUserDecks(username);
+  const decks=await cloudLoadDecks(username);
   if(!decks||!decks.length){toast("No se encontraron decks de "+username);return;}
-  S._ownDecks=S.decks; // save own decks
-  S.viewingUser=username;
-  S.decks=decks;
-  S.activeDeck=0;
-  S.view="home";
-  toast("👁 Viendo decks de "+username);
-  render();
+  S.readOnlyUser=username;S.readOnlyDecks=decks;S.activeDeck=0;S.view="home";
+  toast("👁 Viendo decks de "+username);render();
 }
 
-// ─── PRECONS VIEW ──────────────────────────────────────────────────────────
-function renderPrecons(){
-  const el=document.getElementById("view-precons");
-  el.innerHTML="";
-  el.appendChild(buildTopBar("Precons","Importar decks oficiales","home"));
+// ═══════════════════════════════════════════════════════════════════════════
+// PROFILE
+// ═══════════════════════════════════════════════════════════════════════════
+function renderProfile(){
+  const el=getViewEl("profile");el.innerHTML="";
+  el.appendChild(buildTopBarEl("Perfil","Mi cuenta"));
   const body=h("div",{style:"padding:16px"});
-  body.appendChild(h("div",{class:"ornament"},"✦ BUSCAR PRECON ✦"));
-
-  // Search input
-  const si=h("input",{type:"search",placeholder:"Busca commander o nombre del precon...",value:S.preconSearch||"",style:"margin-bottom:12px"});
-  si.addEventListener("input",e=>{S.preconSearch=e.target.value;debouncePreconSearch(e.target.value);});
-  body.appendChild(si);setTimeout(()=>si.focus&&si.focus(),150);
-
-  // Quick filter chips for recent sets
-  const sets=[
-    {code:"tla",name:"Avatar: TLA"},
-    {code:"soc",name:"Secrets of Strixhaven"},
-    {code:"fin",name:"Final Fantasy"},
-    {code:"tdm",name:"Tarkir: Dragonstorm"},
-    {code:"aed",name:"Aetherdrift"},
-    {code:"dsk",name:"Duskmourn"},
-    {code:"otj",name:"Thunder Junction"},
-    {code:"mh3",name:"Modern Horizons 3"},
-    {code:"mkm",name:"Murders at Karlov"},
-    {code:"lci",name:"Lost Caverns"},
-    {code:"cmm",name:"Commander Masters"},
-  ];
-  const chipsRow=h("div",{style:"display:flex;gap:6px;overflow-x:auto;padding-bottom:8px;margin-bottom:14px;"});
-  const allChip=h("button",{class:"pill"+(S.preconExpansion==="all"?" active":""),onclick:()=>{S.preconExpansion="all";if(S.preconSearch)debouncePreconSearch(S.preconSearch);renderPrecons();}
-  },"Todos");
-  chipsRow.appendChild(allChip);
-  sets.forEach(s=>{
-    const chip=h("button",{class:"pill"+(S.preconExpansion===s.code?" active":""),
-      onclick:()=>{S.preconExpansion=s.code;debouncePreconSearch(s.name);si.value=s.name;S.preconSearch=s.name;renderPrecons();}},s.name);
-    chipsRow.appendChild(chip);
+  if(!S.currentUser){body.appendChild(h("div",{style:"text-align:center;padding:40px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:13px"},"No has iniciado sesión"));el.appendChild(body);return;}
+  body.appendChild(h("div",{class:"ornament"},"✦ MI PERFIL ✦"));
+  const card=h("div",{class:"mtg-frame",style:"margin-bottom:16px"});
+  const inner=h("div",{style:"padding:20px"});
+  const av=h("div",{style:"width:70px;height:70px;border-radius:50%;background:linear-gradient(135deg,var(--red),var(--gold-dark));display:flex;align-items:center;justify-content:center;font-family:'Cinzel Decorative',serif;font-size:28px;color:var(--gold-light);margin:0 auto 12px;border:2px solid var(--gold)"});
+  av.textContent=S.currentUser.displayName[0].toUpperCase();inner.appendChild(av);
+  inner.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:18px;color:var(--gold-light);text-align:center;margin-bottom:4px"},S.currentUser.displayName));
+  inner.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:11px;color:var(--text-dim);text-align:center;letter-spacing:.1em;margin-bottom:14px"},"@"+S.currentUser.username));
+  const stats=h("div",{style:"display:grid;grid-template-columns:1fr 1fr 1fr;gap:0;margin-bottom:16px;background:var(--surface2);border-radius:8px;overflow:hidden"});
+  const totalWins=S.decks.reduce((a,d)=>a+(d.wins||0),0);
+  [["Decks",S.decks.length,"var(--gold)"],["Victorias",totalWins,"var(--success-light)"],["Cartas",S.decks.reduce((a,d)=>a+d.cards.reduce((b,c)=>b+(c.qty||1),0),0),"var(--text)"]].forEach(([l,v,c],i)=>{
+    const cell=h("div",{style:"text-align:center;padding:12px 4px;"+(i<2?"border-right:1px solid var(--border);":"")});
+    cell.appendChild(h("div",{style:"font-family:'Cinzel Decorative',serif;font-size:20px;color:"+c},String(v)));
+    cell.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:9px;color:var(--text-dim);margin-top:2px;letter-spacing:.08em"},l));
+    stats.appendChild(cell);
   });
-  body.appendChild(chipsRow);
-
-  // Results container
-  const resultsDiv=h("div",{id:"precon-results"});
-  if(S.preconLoading){
-    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:20px;color:var(--text-dim);font-family:'Cinzel',serif;font-size:12px;"},"✦ Buscando precons..."));
-  } else if(S.preconResults.length){
-    S.preconResults.forEach(deck=>resultsDiv.appendChild(buildPreconCard(deck)));
-  } else if(S.preconSearch){
-    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:30px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;"},"Sin resultados. Intenta con otro nombre."));
-  } else {
-    resultsDiv.appendChild(h("div",{style:"text-align:center;padding:30px 0;color:var(--text-faint);font-family:'Cinzel',serif;font-size:12px;letter-spacing:.08em"},"Busca un commander o selecciona un set arriba"));
-  }
-  body.appendChild(resultsDiv);
-  el.appendChild(body);
+  inner.appendChild(stats);
+  inner.appendChild(h("button",{class:"btn btn-gold",style:"width:100%;padding:11px;margin-bottom:10px",onclick:async()=>{await cloudSaveDecks(S.currentUser.username,S.decks);toast("☁ Decks sincronizados!");}},"☁ Sincronizar decks"));
+  inner.appendChild(h("button",{class:"btn",style:"width:100%;padding:11px",onclick:()=>{S.currentUser=null;saveSession(null);S.decks=[];S.activeDeck=0;document.getElementById("app").style.display="none";document.getElementById("welcome-screen").style.display="flex";document.getElementById("card-flipper").classList.remove("flipped");document.getElementById("tap-hint").style.opacity="1";cardFlipped=false;toast("Sesión cerrada");}},"Cerrar sesión"));
+  card.appendChild(inner);body.appendChild(card);el.appendChild(body);
 }
 
-function buildPreconCard(deck){
-  const card=h("div",{style:"background:var(--surface);border:1px solid var(--border2);border-radius:14px;overflow:hidden;margin-bottom:14px;"});
-  // Commander image header
-  const imgWrap=h("div",{style:"position:relative;height:110px;overflow:hidden;background:#0a0508;"});
-  const img=document.createElement("img");
-  img.src=deck.imgUri||"";img.alt=deck.commander;
-  img.style.cssText="width:100%;height:100%;object-fit:cover;object-position:top;";
-  img.onerror=()=>{img.style.display="none";};
-  const grad=h("div",{style:"position:absolute;inset:0;background:linear-gradient(0deg,#150d18 0%,transparent 100%);"});
-  imgWrap.append(img,grad);
-  // Name overlay
-  const nameOv=h("div",{style:"position:absolute;bottom:8px;left:12px;right:12px;"});
-  nameOv.appendChild(h("div",{style:"font-family:'Cinzel',serif;font-size:13px;color:var(--gold-light);margin-bottom:3px;"},deck.commander));
-  const metaRow=h("div",{style:"display:flex;align-items:center;gap:6px;"});
-  metaRow.appendChild(h("span",{style:"font-size:10px;color:var(--text-dim);"},deck.setName));
-  if(deck.colors&&deck.colors.length) metaRow.appendChild(manaRow(deck.colors));
-  nameOv.appendChild(metaRow);
-  imgWrap.appendChild(nameOv);
-  card.appendChild(imgWrap);
-  // Body
-  const body=h("div",{style:"padding:12px 14px;"});
-  body.appendChild(h("div",{style:"font-size:11px;color:var(--text-dim);margin-bottom:10px;font-family:'Cinzel',serif;letter-spacing:.06em;"},deck.deckName||deck.commander));
-  const btnRow=h("div",{style:"display:flex;gap:8px;"});
-  const importBtn=h("button",{class:"btn btn-gold",style:"flex:2;padding:10px;",onclick:()=>importPrecon(deck)},"✦ Importar deck");
-  const previewBtn=h("button",{class:"btn",style:"flex:1;padding:10px;",onclick:()=>previewPrecon(deck)},"Ver cartas");
-  btnRow.append(importBtn,previewBtn);
-  body.appendChild(btnRow);
-  card.appendChild(body);
-  return card;
+// ═══════════════════════════════════════════════════════════════════════════
+// PRECONS VIEW (standalone)
+// ═══════════════════════════════════════════════════════════════════════════
+function renderPrecons(){
+  // Not used as a nav view anymore - handled via sheet
+  goView("home");
 }
 
-let preconTimer;
-function debouncePreconSearch(q){
-  clearTimeout(preconTimer);
-  if(!q||q.length<2){S.preconLoading=false;S.preconResults=[];renderPrecons();return;}
-  S.preconLoading=true;renderPrecons();
-  preconTimer=setTimeout(async()=>{
-    await fetchPrecons(q);
-  },500);
-}
-
-async function fetchPrecons(q){
-  try{
-    // Search Scryfall for legendary creatures matching query, filter by those in precon sets
-    const query=`"${q}" is:commander`;
-    const url=`https://api.scryfall.com/cards/search?q=${encodeURIComponent(query)}&order=released&unique=cards`;
-    const r=await fetch(url);
-    if(!r.ok){S.preconLoading=false;S.preconResults=[];renderPrecons();return;}
-    const d=await r.json();
-    const cards=d.data||[];
-    // Build precon deck entries from results
-    S.preconResults=cards.slice(0,12).map(c=>({
-      id:c.id,
-      commander:c.name,
-      deckName:c.name+" Commander Deck",
-      setCode:c.set,
-      setName:c.set_name,
-      colors:(c.color_identity||[]),
-      commanderSet:c.set,
-      commanderCn:c.collector_number,
-      imgUri:c.image_uris?.art_crop||c.card_faces?.[0]?.image_uris?.art_crop||c.image_uris?.normal,
-      scryfallCard:c,
-    }));
-  }catch(e){S.preconResults=[];}
-  S.preconLoading=false;renderPrecons();
-}
-
-async function importPrecon(deck){
-  toast("Importando "+deck.commander+"...");
-  // Create new deck with commander card, user adds rest
-  const newDeck={
-    id:"precon-"+Date.now(),
-    name:deck.commander,
-    expansion:deck.setName,
-    colors:deck.colors,
-    format:"Commander",bracket:2,
-    commanderSet:deck.commanderSet,
-    commanderCn:deck.commanderCn,
-    cards:[{
-      id:"cmd-"+Date.now(),
-      name:deck.commander,
-      set:deck.commanderSet,
-      cn:deck.commanderCn,
-      cat:"Commander",status:"need",qty:1
-    }]
-  };
-  if(S.viewingUser){toast("No puedes editar decks ajenos");return;}
-  S.decks.push(newDeck);
-  S.activeDeck=S.decks.length-1;
-  S.view="deck";save();
-  toast("✓ "+deck.commander+" importado! Agrega las cartas con +");render();
-}
-
-async function previewPrecon(deck){
-  // Show commander card preview
-  showCardPreview({name:deck.commander,set:deck.commanderSet,cn:deck.commanderCn});
-}
-
-// ─── TOPBAR HELPER ─────────────────────────────────────────────────────────
-function buildTopBar(title,sub,backTo){
+// ═══════════════════════════════════════════════════════════════════════════
+// UTIL
+// ═══════════════════════════════════════════════════════════════════════════
+function buildTopBarEl(title,sub,backView){
   const bar=h("div",{class:"topbar"});
-  if(backTo){
-    bar.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;color:var(--gold);display:flex;align-items:center;padding:4px 8px 4px 0;font-size:22px",onclick:()=>{S.view=backTo;render();}},"‹"));
-  }
+  if(backView)bar.appendChild(h("button",{style:"background:none;border:none;cursor:pointer;color:var(--gold);font-size:22px;padding:0 8px 0 0",onclick:()=>goView(backView)},"‹"));
   bar.appendChild(h("div",{style:"flex:1;min-width:0"},
     h("div",{style:"font-family:'Cinzel',serif;font-size:15px;color:var(--gold-light);white-space:nowrap;overflow:hidden;text-overflow:ellipsis"},title),
-    sub?h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:1px"},sub):null
-  ));
+    sub?h("div",{style:"font-size:11px;color:var(--text-dim);margin-top:1px"},sub):null));
   return bar;
 }
 
-// ─── INIT ──────────────────────────────────────────────────────────────────
-render();
+function saveFriends(){if(!S.currentUser)return;localStorage.setItem("friends_"+S.currentUser.username,JSON.stringify(S.friendsList));}
 </script>
 </body>
 </html>
